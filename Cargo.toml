@@ -1,0 +1,14 @@
+[workspace]
+
+members = [
+    "ortac",
+    "liblex",
+    "libparse",
+    "libcore",
+    "libopt",
+    "libgen",
+    "libtype",
+    "libsym",
+    "libtoken",
+    "libast"
+]

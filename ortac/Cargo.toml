@@ -1,0 +1,10 @@
+[package]
+name = "ortac"
+version = "0.1.0"
+authors = ["eomain"]
+description = "orta compiler"
+edition = "2018"
+
+[dependencies]
+libcore = { path = "../libcore" }
+clap = "~2.27.0"

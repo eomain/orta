@@ -1,0 +1,8 @@
+[package]
+name = "libtoken"
+version = "0.1.0"
+authors = ["eomain"]
+description = "library containing language token descriptors"
+edition = "2018"
+
+[dependencies]

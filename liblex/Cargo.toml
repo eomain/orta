@@ -1,0 +1,9 @@
+[package]
+name = "liblex"
+version = "0.1.0"
+authors = ["eomain"]
+description = "lex's the language source into a stream of tokens"
+edition = "2018"
+
+[dependencies]
+libtoken = { path = "../libtoken" }

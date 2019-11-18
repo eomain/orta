@@ -1,0 +1,10 @@
+[package]
+name = "libcore"
+version = "0.1.0"
+authors = ["eomain"]
+description = "the core of the compiler"
+edition = "2018"
+
+[dependencies]
+liblex = { path = "../liblex" }
+libparse = { path = "../libparse" }

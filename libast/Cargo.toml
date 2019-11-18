@@ -1,0 +1,10 @@
+[package]
+name = "libast"
+version = "0.1.0"
+authors = ["eomain"]
+description = "defines the types used to construct an AST"
+edition = "2018"
+
+[dependencies]
+libsym = { path = "../libsym" }
+libtoken = { path = "../libtoken" }
