@@ -6,11 +6,17 @@ pub type Id = String;
 
 // The type information
 pub enum TypeInfo {
-    
+    Var(VarKind)    
 }
 
 // A map of names to type info
 pub type Entry = HashMap<Id, TypeInfo>;
+
+// The kind of a variable
+pub enum VarKind {
+    Value,
+    Ref
+}
 
 // Represents a single scope within a program
 pub struct Scope<'a> {
