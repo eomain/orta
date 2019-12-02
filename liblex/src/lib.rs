@@ -15,18 +15,35 @@ pub enum Error {
     Invalid
 }
 
-fn scan<'a, I>(mut input: I) -> Result<TokenStream<'a>, Error>
+struct Lexer<'a, 'b, I>
+    where I: Iterator<Item=&'a char> {
+    stream: &'b mut TokenStream<'a>,
+    input: I
+}
+
+fn input<'a, 'b, I>(lex: &mut Lexer<'a, 'b, I>)
+   where I: Iterator<Item=&'a char>
+{
+    
+}
+
+fn scan<'a, I>(input: I) -> Result<TokenStream<'a>, Error>
     where I: Iterator<Item=&'a char>
 {
     let mut tokens = TokenStream::new();
 
-    while let Some(c) = input.next() {
-        if c.is_whitespace() {
-            continue;
-        }
+    {
+        let mut lexer = Lexer { stream: &mut tokens, input };
 
-        if let Some(token) = c.token() {
-            tokens.push(token);
+        let next = lexer.input.next();
+        while let Some(c) = next {
+            if c.is_whitespace() {
+                continue;
+            }
+
+            if let Some(token) = c.token() {
+                lexer.stream.push(token);
+            }
         }
     }
 
