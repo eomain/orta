@@ -1,9 +1,7 @@
 [package]
 name = "libtype"
 version = "0.1.0"
-authors = ["k1763735 <k1763735@kcl.ac.uk>"]
+authors = ["eomain"]
+description = "library to provide static type checking"
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]

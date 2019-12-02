@@ -1,9 +1,8 @@
 [package]
 name = "libgen"
 version = "0.1.0"
-authors = ["k1763735 <k1763735@kcl.ac.uk>"]
+authors = ["eomain"]
+description = "the code generation phase"
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
