@@ -4,4 +4,7 @@ version = "0.1.0"
 authors = ["eomain"]
 description = "library to provide static type checking"
 edition = "2018"
+
 [dependencies]
+libsym = { path = "../libsym" }
+libast = { path = "../libast" }
