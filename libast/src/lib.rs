@@ -8,7 +8,7 @@ pub use libtoken::TokenStream;
 // A variable identifier
 #[derive(Debug)]
 pub struct Variable {
-
+    name: String
 }
 
 // A value that can be either a

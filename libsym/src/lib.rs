@@ -5,6 +5,7 @@ use std::collections::HashMap;
 pub type Id = String;
 
 // The type information
+#[derive(Debug, Clone, PartialEq)]
 pub enum TypeInfo {
     Var(VarKind)    
 }
@@ -13,12 +14,14 @@ pub enum TypeInfo {
 pub type Entry = HashMap<Id, TypeInfo>;
 
 // The kind of a variable
+#[derive(Debug, Clone, PartialEq)]
 pub enum VarKind {
     Value,
     Ref
 }
 
 // Represents a single scope within a program
+#[derive(Debug, Clone, PartialEq)]
 pub struct Scope<'a> {
     // An optional parent scope.
     // This should only be `None` for
@@ -45,6 +48,7 @@ impl<'a> Scope<'a> {
 }
 
 // A table to bind symbols
+#[derive(Debug, Clone, PartialEq)]
 pub struct Table<'a> {
     // the global scope
     pub global: Scope<'a>
@@ -52,8 +56,5 @@ pub struct Table<'a> {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+   
 }
