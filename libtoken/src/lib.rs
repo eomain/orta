@@ -1,15 +1,15 @@
 
 pub type List<T> = Vec<T>;
 
-pub type TokenStream<'a> = List<Token<'a>>;
+pub type TokenStream = List<Token>;
 
 // Represents a single unit `token` of the program
 // at the source level.
 #[derive(Debug, PartialEq)]
-pub enum Token<'a> {
+pub enum Token {
     Keyword(Key),
-    Operator,
-    Symbol(&'a str),
+    Operator(Operator),
+    Symbol(String),
     Literal(Literal),
     Lparen,
     Rparen,
@@ -24,22 +24,32 @@ pub enum Token<'a> {
 }
 
 // language reserved keywords
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Key {
     Fun, // fun
     Pure,
     If,
     Else,
-    While
+    While,
+    For,
+    True,
+    False
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ArithmeticOperator {
     Add,
     Sub,
     Mul,
     Div,
     Mod
+}
+
+impl IntoToken for ArithmeticOperator {
+    fn token(&self) -> Token
+    {
+        Token::Operator(Operator::Arithmetic(self.clone()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,8 +78,8 @@ pub enum Operator {
 pub enum Literal {
     Boolean(bool),
     Character(char),
-    Signed(IntegerSize, isize),
-    Unsigned(IntegerSize, usize),
+    Signed(isize),
+    Unsigned(usize),
     Float(f64)
 }
 
@@ -84,23 +94,23 @@ pub enum IntegerSize {
 
 // trait to convert a type into a token
 pub trait IntoToken {
-    fn token<'a>(&'a self) -> Token<'a>;
+    fn token(&self) -> Token;
 }
 
 // trait to attempt to convert a type into a token
 pub trait TryIntoToken {
-    fn token<'a>(&'a self) -> Option<Token<'a>>;
+    fn token(&self) -> Option<Token>;
 }
 
 impl IntoToken for bool {
-    fn token<'a>(&'a self) -> Token<'a>
+    fn token(&self) -> Token
     {
         Token::Literal(Literal::Boolean(*self))
     }
 }
 
 impl TryIntoToken for char {
-    fn token<'a>(&'a self) -> Option<Token<'a>>
+    fn token(&self) -> Option<Token>
     {
         let token = match self {
             '(' => Token::Lparen,
@@ -121,9 +131,9 @@ impl TryIntoToken for char {
 }
 
 impl IntoToken for usize {
-    fn token<'a>(&'a self) -> Token<'a>
+    fn token(&self) -> Token
     {
-        use IntegerSize::*;
+        /*use IntegerSize::*;
 
         const MI32: usize = std::u32::MAX as usize;
 
@@ -132,26 +142,26 @@ impl IntoToken for usize {
             0..=0xFFFF => S16,
             0..=MI32 => S32,
             _ => S64
-        };
+        };*/
 
-        Token::Literal(Literal::Unsigned(size, *self))
+        Token::Literal(Literal::Unsigned(*self))
     }
 }
 
-impl IntoToken for &str {
-    fn token<'a>(&'a self) -> Token<'a>
+impl IntoToken for str {
+    fn token(&self) -> Token
     {
-        Token::Symbol(self)
+        Token::Symbol(self.into())
     }
 }
 
 pub trait KeyToken {
-    fn keyword<'a>(&'a self) -> Option<Token<'a>>;
+    fn keyword(&self) -> Option<Token>;
 }
 
 impl KeyToken for &str {
     #[inline]
-    fn keyword<'a>(&'a self) -> Option<Token<'a>>
+    fn keyword(&self) -> Option<Token>
     {
         use Key::*;
 
@@ -185,9 +195,9 @@ mod tests {
         let token_b = true.token();
         let token_s = "foo".token();
 
-        assert_eq!(Token::Literal(Unsigned(S8, 255)), 255.token());
-        assert_eq!(Token::Literal(Unsigned(S16, 256)), 256.token());
-        assert_eq!(Token::Literal(Unsigned(S32, 65536)), 65536.token());
+        assert_eq!(Token::Literal(Unsigned(255)), 255.token());
+        assert_eq!(Token::Literal(Unsigned(256)), 256.token());
+        assert_eq!(Token::Literal(Unsigned(65536)), 65536.token());
     }
 
     #[test]
