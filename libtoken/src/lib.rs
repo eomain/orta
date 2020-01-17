@@ -33,7 +33,8 @@ pub enum Key {
     While,
     For,
     True,
-    False
+    False,
+    Return
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -80,7 +81,8 @@ pub enum Literal {
     Character(char),
     Signed(isize),
     Unsigned(usize),
-    Float(f64)
+    Float(f64),
+    String(String)
 }
 
 // used to store the size of primitive integer types
