@@ -40,6 +40,7 @@ fn comment(lexer: &mut Lexer)
             }
         }
     }
+    /* TODO: return error */
 }
 
 struct Lexer<'a> {
@@ -132,7 +133,13 @@ impl<'a> Lexer<'a> {
 
 }*/
 
-static KEYWORDS: [(&str, Key); 8] = [
+fn ident(lexer: &mut Lexer) -> Token
+{
+    lexer.read_while(|c| alpha(c) || numeric(c) || c == '_');
+    lexer.string.token()
+}
+
+static KEYWORDS: [(&str, Key); 9] = [
     ("fun", Key::Fun),
     ("pure", Key::Pure),
     ("if", Key::If),
@@ -140,7 +147,8 @@ static KEYWORDS: [(&str, Key); 8] = [
     ("while", Key::While),
     ("for", Key::For),
     ("true", Key::True),
-    ("false", Key::False)
+    ("false", Key::False),
+    ("return", Key::Return)
 ];
 
 #[test]
@@ -153,9 +161,15 @@ fn keyword_test()
     assert_eq!(keyword(&mut lexer), Some(Token::Keyword(Key::If)));
 }
 
-fn keyword_rule(lexer: &mut Lexer)
+fn keyword_rule(lexer: &mut Lexer) -> bool
 {
     lexer.read_while(alpha);
+    if let Some(c) = lexer.ahead() {
+        if c == '_' || numeric(c) {
+            return false;
+        }
+    }
+    true
 }
 
 fn keyword(lexer: &mut Lexer) -> Option<Token>
@@ -176,13 +190,24 @@ fn number(lexer: &mut Lexer) -> Token
     lexer.string.parse::<usize>().unwrap().token()
 }
 
-fn operator(lexer: &mut Lexer, c: char) -> Option<Token>
+fn string(lexer: &mut Lexer) -> Token
+{
+    lexer.next();
+    lexer.read_while(|c| c != '"');
+    let token = Token::Literal(libtoken::Literal::String(lexer.string.to_string()));
+    lexer.next();
+    token
+}
+
+fn operator(lexer: &mut Lexer, c: char) -> Token
 {
     use ArithmeticOperator::*;
 
-    Some(match c {
+    match c {
         '+' => {
             if lexer.check('+') {
+                unimplemented!()
+            } else if lexer.check('=') {
                 unimplemented!()
             } else {
                 Add.token()
@@ -192,8 +217,8 @@ fn operator(lexer: &mut Lexer, c: char) -> Option<Token>
         '*' => Mul.token(),
         '/' => Div.token(),
         '%' => Mod.token(),
-        _ => return None
-    })
+        _ => unreachable!()
+    }
 }
 
 fn scan(input: Vec<char>) -> Result<TokenStream, Error>
@@ -230,10 +255,7 @@ fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 ';' => Token::Semi,
                 ',' => Token::Comma,
                 '+' | '-' | '*' | '/' | '%' => {
-                    match operator(&mut lexer, c) {
-                        None => return Err(Error::Invalid),
-                        Some(c) => c
-                    }
+                    operator(&mut lexer, c)
                 },
                 '0' => {
                     if let Some(c) = lexer.ahead() {
@@ -247,12 +269,22 @@ fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => {
                     number(&mut lexer)
                 },
+                '"' => {
+                    string(&mut lexer)
+                },
+                '_' => {
+                    ident(&mut lexer)
+                },
                 _ => {
                     if alpha(c) {
-                        keyword_rule(&mut lexer);
-                        match keyword(&mut lexer) {
-                            None => lexer.string.token(),
-                            Some(t) => t
+                        if keyword_rule(&mut lexer) {
+                            match keyword(&mut lexer) {
+                                None => lexer.string.token(),
+                                Some(t) => t
+                            }
+                        } else {
+                            lexer.next();
+                            ident(&mut lexer)
                         }
                     } else {
                         return Err(Error::Invalid);
@@ -334,5 +366,54 @@ mod tests {
         let input = "0{}".chars().collect();
         let tokens = scan(input).unwrap();
         assert_eq!(tokens.get(0), Some(&0.token()));
+    }
+
+    #[test]
+    fn string_literal()
+    {
+        let input = r#"
+            pure fun main(): str {
+                return "test";
+            }
+        "#.chars().collect();
+
+        let stream = scan(input).unwrap();
+        println!("{:?}", stream);
+
+        let sym = Symbol("main".into());
+        let ret = Symbol("str".into());
+        let str = Token::Literal(libtoken::Literal::String("test".into()));
+
+        let some = [
+            Some(&Keyword(Key::Pure)),
+            Some(&Keyword(Key::Fun)),
+            Some(&sym),
+            Some(&Lparen), Some(&Rparen),
+            Some(&Colon), Some(&ret),
+            Some(&Lbrace),
+            Some(&Keyword(Key::Return)),
+            Some(&str), Some(&Semi),
+            Some(&Rbrace)
+        ];
+
+        let mut tokens = stream.iter();
+        for s in &some {
+            assert_eq!(*s, tokens.next());
+        }
+    }
+
+    #[test]
+    fn ident()
+    {
+        let input = r#"
+            _ foo _bar foo_bar
+        "#.chars().collect();
+        let stream = scan(input).unwrap();
+
+        let mut tokens = stream.iter();
+        assert_eq!(tokens.next(), Some(&Symbol("_".into())));
+        assert_eq!(tokens.next(), Some(&Symbol("foo".into())));
+        assert_eq!(tokens.next(), Some(&Symbol("_bar".into())));
+        assert_eq!(tokens.next(), Some(&Symbol("foo_bar".into())));
     }
 }
