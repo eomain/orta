@@ -105,6 +105,20 @@ impl<'a> Lexer<'a> {
         true
     }
 
+    fn read_while<F>(&mut self, f: F)
+        where F: Fn(char) -> bool
+    {
+        let c = self.read().unwrap();
+        self.string.push(c);
+        while let Some(c) = self.ahead() {
+            if !f(c) {
+                break;
+            }
+            self.string.push(c);
+            self.next();
+        }
+    }
+
     fn accept(&mut self, token: Token)
     {
         self.stream.push(token);
@@ -141,15 +155,7 @@ fn keyword_test()
 
 fn keyword_rule(lexer: &mut Lexer)
 {
-    let c = lexer.read().unwrap();
-    lexer.string.push(c);
-    while let Some(c) = lexer.ahead() {
-        if !alpha(c) {
-            break;
-        }
-        lexer.string.push(c);
-        lexer.next();
-    }
+    lexer.read_while(alpha);
 }
 
 fn keyword(lexer: &mut Lexer) -> Option<Token>
@@ -164,6 +170,12 @@ fn keyword(lexer: &mut Lexer) -> Option<Token>
     None
 }
 
+fn number(lexer: &mut Lexer) -> Token
+{
+    lexer.read_while(numeric);
+    lexer.string.parse::<usize>().unwrap().token()
+}
+
 fn operator(lexer: &mut Lexer, c: char) -> Option<Token>
 {
     use ArithmeticOperator::*;
@@ -176,6 +188,10 @@ fn operator(lexer: &mut Lexer, c: char) -> Option<Token>
                 Add.token()
             }
         },
+        '-' => Sub.token(),
+        '*' => Mul.token(),
+        '/' => Div.token(),
+        '%' => Mod.token(),
         _ => return None
     })
 }
@@ -213,17 +229,29 @@ fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 ':' => Token::Colon,
                 ';' => Token::Semi,
                 ',' => Token::Comma,
-                '+' => {
+                '+' | '-' | '*' | '/' | '%' => {
                     match operator(&mut lexer, c) {
                         None => return Err(Error::Invalid),
                         Some(c) => c
                     }
                 },
+                '0' => {
+                    if let Some(c) = lexer.ahead() {
+                        match c {
+                            '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => return Err(Error::Invalid),
+                            _ => ()
+                        }
+                    }
+                    0.token()
+                },
+                '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => {
+                    number(&mut lexer)
+                },
                 _ => {
                     if alpha(c) {
                         keyword_rule(&mut lexer);
                         match keyword(&mut lexer) {
-                            None => Token::Symbol(lexer.string.to_string()),
+                            None => lexer.string.token(),
                             Some(t) => t
                         }
                     } else {
@@ -284,5 +312,27 @@ mod tests {
         let input: Vec<char> = PROG.chars().collect();
         let stream = scan(input).unwrap();
         println!("{:?}", stream);
+
+        let sym = Symbol("main".into());
+
+        let some = [
+            Some(&Keyword(Key::Fun)),
+            Some(&sym),
+            Some(&Lparen), Some(&Rparen),
+            Some(&Lbrace), Some(&Rbrace)
+        ];
+
+        let mut tokens = stream.iter();
+        for s in &some {
+            assert_eq!(*s, tokens.next());
+        }
+    }
+
+    #[test]
+    fn input_03()
+    {
+        let input = "0{}".chars().collect();
+        let tokens = scan(input).unwrap();
+        assert_eq!(tokens.get(0), Some(&0.token()));
     }
 }
