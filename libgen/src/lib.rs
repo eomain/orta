@@ -1,7 +1,11 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+
+extern crate libast;
+
+pub use libast::*;
+
+pub mod llvm;
+
+pub trait Output {
+    fn output<W>(&self, w: &mut W)
+        where W: std::io::Write;
 }

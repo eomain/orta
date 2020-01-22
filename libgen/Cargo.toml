@@ -6,3 +6,4 @@ description = "the code generation phase"
 edition = "2018"
 
 [dependencies]
+libast = { path = "../libast" }
