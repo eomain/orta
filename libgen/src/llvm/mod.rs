@@ -11,7 +11,7 @@ impl Register {
     fn new(id: &str) -> Self
     {
         Self {
-            id: id.into()
+            id: lid(id)
         }
     }
 }
@@ -101,7 +101,7 @@ impl From<Value> for String
         match v {
             Int(i) => format!("{}", i),
             Uint(u) => format!("{}", u),
-            Reg(r) => lid(r.as_ref())
+            Reg(r) => r.id
         }
     }
 }
@@ -116,7 +116,7 @@ impl fmt::Display for Value {
 
 #[derive(Debug, Clone)]
 pub enum Operation {
-    Add(Value, Value),
+    Add(Register, Value, Value),
     Call,
     Ret
 }
@@ -126,7 +126,7 @@ impl Operation {
     {
         use Operation::*;
         match self {
-            Add(_, _) => "add",
+            Add(_, _, _) => "add",
             Call => "call",
             Ret => "ret"
         }
@@ -136,7 +136,16 @@ impl Operation {
     {
         use Operation::*;
         match self {
-            Add(a, b) => Some(format!("{}, {}", a, b)),
+            Add(_, a, b) => Some(format!("{}, {}", a, b)),
+            _ => None
+        }
+    }
+
+    fn reg(&self) -> Option<String>
+    {
+        use Operation::*;
+        match self {
+            Add(r, _, _) => Some(r.id.clone()),
             _ => None
         }
     }
@@ -163,10 +172,20 @@ impl From<Inst> for String {
         let t: String = i.t.into();
         let name = i.op.name();
         let args = i.op.args();
-        if let Some(args) = args {
-            format!("{} {} {}", name, t, args)
+        let reg = i.op.reg();
+
+        if let Some(reg) = reg {
+            if let Some(args) = args {
+                format!("{} = {} {} {}", reg, name, t, args)
+            } else {
+                unreachable!()
+            }
         } else {
-            format!("{} {}", name, t)
+            if let Some(args) = args {
+                format!("{} {} {}", name, t, args)
+            } else {
+                format!("{} {}", name, t)
+            }
         }
     }
 }
@@ -229,7 +248,7 @@ fn function()
 {
     use Value::*;
     let mut f = Function::new("main", None, Type::Void);
-    let add = Operation::Add(Reg(Register::new("0")), Int(5));
+    let add = Operation::Add(Register::new("1"), Reg(Register::new("0")), Int(5));
     f.append(Inst::new(add, Type::Int(8)));
     let mut w = std::io::stdout();
     f.output(&mut w);
