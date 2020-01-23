@@ -177,7 +177,7 @@ impl Operation {
     {
         use Operation::*;
         match self {
-            Add(_, a, b) => Some(format!("{}, {}", a, b)),
+            Add(_, a, b) |
             Mul(_, a, b) => Some(format!("{}, {}", a, b)),
             _ => None
         }
@@ -187,7 +187,7 @@ impl Operation {
     {
         use Operation::*;
         match self {
-            Add(r, _, _) => Some(r.id.clone()),
+            Add(r, _, _) |
             Mul(r, _, _) => Some(r.id.clone()),
             _ => None
         }
@@ -251,14 +251,15 @@ pub struct Function {
 }
 
 impl Function {
-    fn new(name: &str, param: Option<Vec<(Type, Register)>>, ret: Type) -> Self
+    fn new(name: &str, param: Option<Vec<(Type, Register)>>,
+           ret: Type, prop: Option<Properties>) -> Self
     {
         Self {
             name: gid(name),
             param,
             ret,
             body: vec![],
-            properties: Properties::default()
+            properties: if let Some(p) = prop { p } else { Properties::default() }
         }
     }
 
@@ -294,7 +295,7 @@ impl Output for Function {
 fn function()
 {
     use Value::*;
-    let mut f = Function::new("main", None, Type::Void);
+    let mut f = Function::new("main", None, Type::Void, None);
     let add = Operation::Add(Register::new("1"), Reg(Register::new("0")), Int(5));
     let mul = Operation::Mul(Register::new("2"), Reg(Register::new("1")), Int(2));
     f.append(Inst::new(add, Type::Int(8)));
