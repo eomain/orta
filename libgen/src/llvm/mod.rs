@@ -2,6 +2,45 @@
 use std::fmt;
 use crate::Output;
 
+#[derive(Debug, Copy, Clone)]
+pub enum Linkage {
+    Private,
+    External
+}
+
+impl From<Linkage> for String {
+    fn from(l: Linkage) -> String
+    {
+        use Linkage::*;
+        match l {
+            Private => "private".into(),
+            External => "".into()
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Properties {
+    linkage: Linkage
+}
+
+impl Properties {
+    fn default() -> Self
+    {
+        Self {
+            linkage: Linkage::Private
+        }
+    }
+}
+
+impl From<Properties> for String {
+    fn from(p: Properties) -> String
+    {
+        let linkage: String = p.linkage.into();
+        format!("{}", linkage)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Register {
     id: String
@@ -118,6 +157,7 @@ impl fmt::Display for Value {
 pub enum Operation {
     Add(Register, Value, Value),
     Call,
+    Mul(Register, Value, Value),
     Ret
 }
 
@@ -128,6 +168,7 @@ impl Operation {
         match self {
             Add(_, _, _) => "add",
             Call => "call",
+            Mul(_, _, _) => "mul",
             Ret => "ret"
         }
     }
@@ -137,6 +178,7 @@ impl Operation {
         use Operation::*;
         match self {
             Add(_, a, b) => Some(format!("{}, {}", a, b)),
+            Mul(_, a, b) => Some(format!("{}, {}", a, b)),
             _ => None
         }
     }
@@ -146,6 +188,7 @@ impl Operation {
         use Operation::*;
         match self {
             Add(r, _, _) => Some(r.id.clone()),
+            Mul(r, _, _) => Some(r.id.clone()),
             _ => None
         }
     }
@@ -201,19 +244,21 @@ pub struct Local {
 #[derive(Debug, Clone)]
 pub struct Function {
     name: String,
-    param: Option<Vec<Type>>,
+    param: Option<Vec<(Type, Register)>>,
     ret: Type,
-    body: Vec<Inst>
+    body: Vec<Inst>,
+    properties: Properties
 }
 
 impl Function {
-    fn new(name: &str, param: Option<Vec<Type>>, ret: Type) -> Self
+    fn new(name: &str, param: Option<Vec<(Type, Register)>>, ret: Type) -> Self
     {
         Self {
-            name: name.into(),
+            name: gid(name),
             param,
             ret,
-            body: vec![]
+            body: vec![],
+            properties: Properties::default()
         }
     }
 
@@ -227,13 +272,15 @@ impl Output for Function {
     fn output<W>(&self, w: &mut W)
         where W: std::io::Write
     {
-        let name = gid(&self.name);
+        let name = &self.name;
         let t: String = self.ret.into();
         let ret = Inst::new(Operation::Ret, self.ret);
         let ret: String = ret.into();
         let mut i: String;
 
-        writeln!(w, "define {} {}() {{", t, name);
+        let properties: String = self.properties.into();
+
+        writeln!(w, "define {} {} {}() {{", properties, t, name);
         for inst in &self.body {
             i = inst.clone().into();
             writeln!(w, "\t{}", i);
@@ -249,7 +296,9 @@ fn function()
     use Value::*;
     let mut f = Function::new("main", None, Type::Void);
     let add = Operation::Add(Register::new("1"), Reg(Register::new("0")), Int(5));
+    let mul = Operation::Mul(Register::new("2"), Reg(Register::new("1")), Int(2));
     f.append(Inst::new(add, Type::Int(8)));
+    f.append(Inst::new(mul, Type::Int(8)));
     let mut w = std::io::stdout();
     f.output(&mut w);
 }
