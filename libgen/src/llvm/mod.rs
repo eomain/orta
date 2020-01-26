@@ -76,6 +76,24 @@ fn lid(name: &str) -> String
     format!("%{}", name)
 }
 
+fn param(p: &Vec<(Type, Register)>) -> String
+{
+    let mut s = String::new();
+    if p.len() > 0 {
+        let mut arg = &p[0];
+        let mut t: String = arg.0.into();
+        let mut r = &arg.1.id;
+        s.push_str(&format!("{} {}", t, r));
+        for i in 1..p.len() {
+            arg = &p[i];
+            t = arg.0.into();
+            r = &arg.1.id;
+            s.push_str(&format!(", {} {}", t, r));
+        }
+    }
+    s
+}
+
 #[derive(Debug, Clone)]
 pub struct Module {
     name: String,
@@ -279,9 +297,13 @@ impl Output for Function {
         let ret: String = ret.into();
         let mut i: String;
 
+        let param = match &self.param {
+            None => String::new(),
+            Some(p) => param(&p)
+        };
         let properties: String = self.properties.into();
 
-        writeln!(w, "define {} {} {}() {{", properties, t, name);
+        writeln!(w, "define {} {} {}({}) {{", properties, t, name, param);
         for inst in &self.body {
             i = inst.clone().into();
             writeln!(w, "\t{}", i);
@@ -295,7 +317,11 @@ impl Output for Function {
 fn function()
 {
     use Value::*;
-    let mut f = Function::new("main", None, Type::Void, None);
+    let param = vec![
+        (Type::Int(8), Register::new("x")),
+        (Type::Int(8), Register::new("y"))
+    ];
+    let mut f = Function::new("main", Some(param), Type::Void, None);
     let add = Operation::Add(Register::new("1"), Reg(Register::new("0")), Int(5));
     let mul = Operation::Mul(Register::new("2"), Reg(Register::new("1")), Int(2));
     f.append(Inst::new(add, Type::Int(8)));
