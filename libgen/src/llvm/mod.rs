@@ -2,24 +2,24 @@
 use std::fmt;
 use crate::Output;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Linkage {
     Private,
     External
 }
 
-impl From<Linkage> for String {
-    fn from(l: Linkage) -> String
+impl From<Linkage> for &str {
+    fn from(l: Linkage) -> &'static str
     {
         use Linkage::*;
         match l {
-            Private => "private".into(),
-            External => "".into()
+            Private => "private",
+            External => ""
         }
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Properties {
     linkage: Linkage
 }
@@ -36,12 +36,20 @@ impl Properties {
 impl From<Properties> for String {
     fn from(p: Properties) -> String
     {
-        let linkage: String = p.linkage.into();
+        let linkage: &str = p.linkage.into();
         format!("{}", linkage)
     }
 }
 
-#[derive(Debug, Clone)]
+impl fmt::Display for Properties {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        let prop: String = self.clone().into();
+        write!(f, "{}", prop)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Register {
     id: String
 }
@@ -81,14 +89,30 @@ fn param(p: &Vec<(Type, Register)>) -> String
     let mut s = String::new();
     if p.len() > 0 {
         let mut arg = &p[0];
-        let mut t: String = arg.0.into();
+        let mut t: String = arg.0.clone().into();
         let mut r = &arg.1.id;
         s.push_str(&format!("{} {}", t, r));
         for i in 1..p.len() {
             arg = &p[i];
-            t = arg.0.into();
+            t = arg.0.clone().into();
             r = &arg.1.id;
             s.push_str(&format!(", {} {}", t, r));
+        }
+    }
+    s
+}
+
+fn param_dec(p: &Vec<Type>) -> String
+{
+    let mut s = String::new();
+    if p.len() > 0 {
+        let mut arg = &p[0];
+        let mut t: String = arg.clone().into();
+        s.push_str(&format!("{}", t));
+        for i in 1..p.len() {
+            arg = &p[i];
+            t = arg.clone().into();
+            s.push_str(&format!(", {}", t));
         }
     }
     s
@@ -97,16 +121,22 @@ fn param(p: &Vec<(Type, Register)>) -> String
 #[derive(Debug, Clone)]
 pub struct Module {
     name: String,
-    functions: Vec<Function>
+    values: Vec<GlobalValue>
 }
 
 impl Module {
-    fn new(name: &str) -> Self
+    pub fn new(name: &str) -> Self
     {
         Self {
             name: name.into(),
-            functions: vec![]
+            values: vec![]
         }
+    }
+
+    pub fn append<I>(&mut self, i: I)
+        where I: Into<GlobalValue>
+    {
+        self.values.push(i.into());
     }
 }
 
@@ -114,19 +144,20 @@ impl Output for Module {
     fn output<W>(&self, w: &mut W)
         where W: std::io::Write
     {
-        for f in &self.functions {
-            f.output(w);
+        for v in &self.values {
+            v.output(w);
         }
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Void,
     Int(usize),
     Uint(usize),
     Float,
-    Double
+    Double,
+    Array(usize, Box<Type>)
 }
 
 impl From<Type> for String {
@@ -138,7 +169,11 @@ impl From<Type> for String {
             Int(n) => format!("i{}", n),
             Uint(n) => format!("u{}", n),
             Float => "float".into(),
-            Double => "double".into()
+            Double => "double".into(),
+            Array(s, t) => {
+                 let t: String = (*t).into();
+                 format!("[{} x {}]", s, t)
+             }
         }
     }
 }
@@ -251,8 +286,35 @@ impl From<Inst> for String {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Global {
-    name: String
+    name: String,
+    pub prop: Properties
+}
+
+impl Global {
+    fn new(name: &str) -> Self
+    {
+        Self {
+            name: gid(name),
+            prop: Properties::default()
+        }
+    }
+}
+
+impl From<Global> for GlobalValue {
+    fn from(g: Global) -> Self
+    {
+        GlobalValue::Global(g)
+    }
+}
+
+impl Output for Global {
+    fn output<W>(&self, w: &mut W)
+        where W: std::io::Write
+    {
+        writeln!(w, "{} {}", self.name, self.prop);
+    }
 }
 
 pub struct Local {
@@ -265,11 +327,11 @@ pub struct Function {
     param: Option<Vec<(Type, Register)>>,
     ret: Type,
     body: Vec<Inst>,
-    properties: Properties
+    prop: Properties
 }
 
 impl Function {
-    fn new(name: &str, param: Option<Vec<(Type, Register)>>,
+    pub fn new(name: &str, param: Option<Vec<(Type, Register)>>,
            ret: Type, prop: Option<Properties>) -> Self
     {
         Self {
@@ -277,13 +339,20 @@ impl Function {
             param,
             ret,
             body: vec![],
-            properties: if let Some(p) = prop { p } else { Properties::default() }
+            prop: if let Some(p) = prop { p } else { Properties::default() }
         }
     }
 
-    fn append(&mut self, i: Inst)
+    pub fn append(&mut self, i: Inst)
     {
         self.body.push(i);
+    }
+}
+
+impl From<Function> for GlobalValue {
+    fn from(f: Function) -> Self
+    {
+        GlobalValue::Function(f)
     }
 }
 
@@ -292,8 +361,8 @@ impl Output for Function {
         where W: std::io::Write
     {
         let name = &self.name;
-        let t: String = self.ret.into();
-        let ret = Inst::new(Operation::Ret, self.ret);
+        let t: String = self.ret.clone().into();
+        let ret = Inst::new(Operation::Ret, self.ret.clone());
         let ret: String = ret.into();
         let mut i: String;
 
@@ -301,13 +370,14 @@ impl Output for Function {
             None => String::new(),
             Some(p) => param(&p)
         };
-        let properties: String = self.properties.into();
+        let prop: String = self.prop.into();
 
-        writeln!(w, "define {} {} {}({}) {{", properties, t, name, param);
+        writeln!(w, "define {} {} {}({}) {{", prop, t, name, param);
         for inst in &self.body {
             i = inst.clone().into();
             writeln!(w, "\t{}", i);
         }
+        // TODO: remove
         writeln!(w, "\t{}", ret);
         writeln!(w, "}}");
     }
@@ -330,12 +400,89 @@ fn function()
     f.output(&mut w);
 }
 
+#[derive(Debug, Clone)]
+pub struct FunctionDec {
+    name: String,
+    param: Option<Vec<Type>>,
+    ret: Type
+}
+
+impl FunctionDec {
+    fn new(name: &str, param: Option<Vec<Type>>, ret: Type) -> Self
+    {
+        Self {
+            name: gid(name),
+            param,
+            ret
+        }
+    }
+}
+
+impl From<FunctionDec> for GlobalValue {
+    fn from(f: FunctionDec) -> Self
+    {
+        GlobalValue::FunctionDec(f)
+    }
+}
+
+impl Output for FunctionDec {
+    fn output<W>(&self, w: &mut W)
+        where W: std::io::Write
+    {
+        let name = &self.name;
+        let ret: String = self.ret.clone().into();
+
+        let param = match &self.param {
+            None => String::new(),
+            Some(p) => param_dec(&p)
+        };
+
+        writeln!(w, "declare {} {}({})", ret, name, param);
+    }
+}
+
+#[derive(Debug, Clone)]
+enum GlobalValue {
+    Global(Global),
+    Function(Function),
+    FunctionDec(FunctionDec)
+}
+
+impl Output for GlobalValue {
+    fn output<W>(&self, w: &mut W)
+        where W: std::io::Write
+    {
+        use GlobalValue::*;
+        match self {
+            Global(g) => g.output(w),
+            Function(f) => f.output(w),
+            FunctionDec(d) => d.output(w)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::llvm::*;
 
+    #[test]
     fn module()
     {
+        let g = Global::new("g");
+        let f = Function::new("f", None, Type::Void, None);
+        let mut m = Module::new("test");
+        m.append(g);
+        m.append(f);
+        println!("{:?}", m);
+        m.output(&mut std::io::stdout());
+    }
 
+    #[test]
+    fn declare()
+    {
+        let ret = Type::Void;
+        let param = Some(vec![Type::Int(32)]);
+        let dec = FunctionDec::new("exit", param, ret);
+        dec.output(&mut std::io::stdout());
     }
 }
