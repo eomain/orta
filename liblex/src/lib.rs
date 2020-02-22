@@ -8,7 +8,7 @@ use libtoken::TokenStream;
 use libtoken::IntoToken;
 use libtoken::TryIntoToken;
 use libtoken::Key;
-use libtoken::KeyToken;
+use libtoken::Prim;
 use libtoken::ArithmeticOperator;
 
 // The type returned if there is an error
@@ -151,6 +151,20 @@ static KEYWORDS: [(&str, Key); 9] = [
     ("return", Key::Return)
 ];
 
+static KEYWORDS_PRIM: [(&str, Prim); 11] = [
+    ("u8", Prim::U8),
+    ("u16", Prim::U16),
+    ("u32", Prim::U32),
+    ("u64", Prim::U64),
+    ("uint", Prim::U64),
+    ("i8", Prim::S8),
+    ("i16", Prim::S16),
+    ("i32", Prim::S32),
+    ("i64", Prim::S64),
+    ("int", Prim::S64),
+    ("bool", Prim::Bool)
+];
+
 #[test]
 fn keyword_test()
 {
@@ -174,11 +188,15 @@ fn keyword_rule(lexer: &mut Lexer) -> bool
 
 fn keyword(lexer: &mut Lexer) -> Option<Token>
 {
-    let mut key = false;
     for k in &KEYWORDS {
         if k.0 == lexer.string {
-            key = true;
-            return Some(Token::Keyword(k.1));
+            return Some(k.1.token());
+        }
+    }
+
+    for k in &KEYWORDS_PRIM {
+        if k.0 == lexer.string {
+            return Some(k.1.token());
         }
     }
     None
@@ -187,6 +205,11 @@ fn keyword(lexer: &mut Lexer) -> Option<Token>
 fn number(lexer: &mut Lexer) -> Token
 {
     lexer.read_while(numeric);
+    if lexer.check('.') {
+        lexer.read_while(numeric);
+        /* TODO: check for `.` */
+        return lexer.string.parse::<f64>().unwrap().token()
+    }
     lexer.string.parse::<usize>().unwrap().token()
 }
 
@@ -195,6 +218,7 @@ fn string(lexer: &mut Lexer) -> Token
     lexer.next();
     lexer.read_while(|c| c != '"');
     let token = Token::Literal(libtoken::Literal::String(lexer.string.to_string()));
+    /* TODO: check for `"` */
     lexer.next();
     token
 }
@@ -221,7 +245,7 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
     }
 }
 
-fn scan(input: Vec<char>) -> Result<TokenStream, Error>
+pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
 {
     let mut tokens = TokenStream::new();
 
@@ -415,5 +439,17 @@ mod tests {
         assert_eq!(tokens.next(), Some(&Symbol("foo".into())));
         assert_eq!(tokens.next(), Some(&Symbol("_bar".into())));
         assert_eq!(tokens.next(), Some(&Symbol("foo_bar".into())));
+    }
+
+    #[test]
+    fn float()
+    {
+        let input = "1.5+2.5".chars().collect();
+        let stream = scan(input).unwrap();
+        let mut tokens = stream.iter();
+
+        assert_eq!(tokens.next(), Some(&Literal(libtoken::Literal::Float(1.5))));
+        tokens.next();
+        assert_eq!(tokens.next(), Some(&Literal(libtoken::Literal::Float(2.5))));
     }
 }
