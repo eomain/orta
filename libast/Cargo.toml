@@ -2,7 +2,7 @@
 name = "libast"
 version = "0.1.0"
 authors = ["eomain"]
-description = "defines the types used to construct an ast"
+description = "defines the types used to construct an AST for a program"
 edition = "2018"
 
 [dependencies]
