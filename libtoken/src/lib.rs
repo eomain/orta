@@ -5,9 +5,10 @@ pub type TokenStream = List<Token>;
 
 // Represents a single unit `token` of the program
 // at the source level.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Keyword(Key),
+    Primitive(Prim),
     Operator(Operator),
     Symbol(String),
     Literal(Literal),
@@ -35,6 +36,37 @@ pub enum Key {
     True,
     False,
     Return
+}
+
+impl IntoToken for Key {
+    fn token(&self) -> Token
+    {
+        Token::Keyword(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Prim {
+    Bool,
+    U8,
+    U16,
+    U32,
+    U64,
+    UInt,
+    S8,
+    S16,
+    S32,
+    S64,
+    SInt,
+    F32,
+    F64
+}
+
+impl IntoToken for Prim {
+    fn token(&self) -> Token
+    {
+        Token::Primitive(self.clone())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -135,18 +167,14 @@ impl TryIntoToken for char {
 impl IntoToken for usize {
     fn token(&self) -> Token
     {
-        /*use IntegerSize::*;
-
-        const MI32: usize = std::u32::MAX as usize;
-
-        let size = match *self {
-            0..=0xFF => S8,
-            0..=0xFFFF => S16,
-            0..=MI32 => S32,
-            _ => S64
-        };*/
-
         Token::Literal(Literal::Unsigned(*self))
+    }
+}
+
+impl IntoToken for f64 {
+    fn token(&self) -> Token
+    {
+        Token::Literal(Literal::Float(*self))
     }
 }
 
@@ -157,7 +185,7 @@ impl IntoToken for str {
     }
 }
 
-pub trait KeyToken {
+/*pub trait KeyToken {
     fn keyword(&self) -> Option<Token>;
 }
 
@@ -178,7 +206,7 @@ impl KeyToken for &str {
 
         Some(Token::Keyword(key))
     }
-}
+}*/
 
 #[cfg(test)]
 mod tests {
@@ -202,9 +230,9 @@ mod tests {
         assert_eq!(Token::Literal(Unsigned(65536)), 65536.token());
     }
 
-    #[test]
+    /*#[test]
     fn keyword()
     {
         assert_eq!(Some(Keyword(Fun)), "fun".keyword());
-    }
+    }*/
 }
