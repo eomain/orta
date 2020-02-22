@@ -2,7 +2,7 @@
 name = "libparse"
 version = "0.1.0"
 authors = ["eomain"]
-description = "parse a stream of tokens producing an ast"
+description = "parse a stream of tokens producing an AST"
 edition = "2018"
 
 [dependencies]
