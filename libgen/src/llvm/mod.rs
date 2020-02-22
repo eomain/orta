@@ -1,5 +1,6 @@
 
 use std::fmt;
+use std::rc::Rc;
 use crate::Output;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -55,7 +56,7 @@ pub struct Register {
 }
 
 impl Register {
-    fn new(id: &str) -> Self
+    pub fn new(id: &str) -> Self
     {
         Self {
             id: lid(id)
@@ -157,7 +158,8 @@ pub enum Type {
     Uint(usize),
     Float,
     Double,
-    Array(usize, Box<Type>)
+    Array(usize, Box<Type>),
+    Pointer(Box<Type>)
 }
 
 impl From<Type> for String {
@@ -167,14 +169,26 @@ impl From<Type> for String {
         match t {
             Void => "void".into(),
             Int(n) => format!("i{}", n),
-            Uint(n) => format!("u{}", n),
+            Uint(n) => format!("i{}", n),
             Float => "float".into(),
             Double => "double".into(),
             Array(s, t) => {
                  let t: String = (*t).into();
                  format!("[{} x {}]", s, t)
-             }
+             },
+            Pointer(t) => {
+                let t: String = (*t).into();
+                format!("{}*", t)
+            }
         }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        let s: String = self.clone().into();
+        write!(f, "{}", s)
     }
 }
 
@@ -211,7 +225,12 @@ pub enum Operation {
     Add(Register, Value, Value),
     Call,
     Mul(Register, Value, Value),
-    Ret
+    Ret(Option<Value>),
+    Sub(Register, Value, Value),
+    Sdiv(Register, Value, Value),
+    Srem(Register, Value, Value),
+    Udiv(Register, Value, Value),
+    Urem(Register, Value, Value),
 }
 
 impl Operation {
@@ -222,7 +241,12 @@ impl Operation {
             Add(_, _, _) => "add",
             Call => "call",
             Mul(_, _, _) => "mul",
-            Ret => "ret"
+            Ret(_) => "ret",
+            Sub(_, _, _) => "sub",
+            Sdiv(_, _, _) => "sdiv",
+            Srem(_, _, _) => "srem",
+            Udiv(_, _, _) => "udiv",
+            Urem(_, _, _) => "urem",
         }
     }
 
@@ -231,7 +255,16 @@ impl Operation {
         use Operation::*;
         match self {
             Add(_, a, b) |
-            Mul(_, a, b) => Some(format!("{}, {}", a, b)),
+            Mul(_, a, b) |
+            Sub(_, a, b) |
+            Sdiv(_, a, b) |
+            Srem(_, a, b) |
+            Udiv(_, a, b) |
+            Urem(_, a, b) => Some(format!("{}, {}", a, b)),
+            Ret(v) => match v {
+                None => None,
+                Some(v) => Some(format!("{}", v))
+            },
             _ => None
         }
     }
@@ -241,7 +274,12 @@ impl Operation {
         use Operation::*;
         match self {
             Add(r, _, _) |
-            Mul(r, _, _) => Some(r.id.clone()),
+            Mul(r, _, _) |
+            Sub(r, _, _) |
+            Sdiv(r, _, _) |
+            Srem(r, _, _) |
+            Udiv(r, _, _) |
+            Urem(r, _, _) => Some(r.id.clone()),
             _ => None
         }
     }
@@ -254,7 +292,7 @@ pub struct Inst {
 }
 
 impl Inst {
-    fn new(op: Operation, t: Type) -> Self
+    pub fn new(op: Operation, t: Type) -> Self
     {
         Self {
             op, t
@@ -317,8 +355,14 @@ impl Output for Global {
     }
 }
 
-pub struct Local {
-    name: String
+#[derive(Debug, Clone)]
+pub struct GlobalId {
+    id: String
+}
+
+#[derive(Debug, Clone)]
+pub enum Constant {
+    String(Rc<GlobalId>, String)
 }
 
 #[derive(Debug, Clone)]
@@ -362,8 +406,6 @@ impl Output for Function {
     {
         let name = &self.name;
         let t: String = self.ret.clone().into();
-        let ret = Inst::new(Operation::Ret, self.ret.clone());
-        let ret: String = ret.into();
         let mut i: String;
 
         let param = match &self.param {
@@ -377,8 +419,12 @@ impl Output for Function {
             i = inst.clone().into();
             writeln!(w, "\t{}", i);
         }
-        // TODO: remove
-        writeln!(w, "\t{}", ret);
+
+        if let Type::Void = self.ret {
+            let ret = Inst::new(Operation::Ret(None), self.ret.clone());
+            let ret: String = ret.into();
+            writeln!(w, "\t{}", ret);
+        }
         writeln!(w, "}}");
     }
 }
