@@ -143,25 +143,25 @@ fn asm(output: &str) -> Vec<&str>
 }
 
 #[cfg(not(target_os = "linux"))]
-fn ld_cmd() -> Vec<&'static str>
+fn ld_cmd(output: &str) -> Vec<&str>
 {
     vec![
-        "ld", "-o", "test"
+        "ld", "-o", output
     ]
 }
 
 #[cfg(target_os = "linux")]
-fn ld_cmd() -> Vec<&'static str>
+fn ld_cmd(output: &str) -> Vec<&str>
 {
     vec![
         "ld", "--dynamic-linker", "/lib64/ld-linux-x86-64.so.2",
-        "-o", "test"
+        "-o", output
     ]
 }
 
-fn ld<'a>(objs: &mut Vec<&'a str>) -> Vec<&'a str>
+fn ld<'a>(output: &'a str, objs: &mut Vec<&'a str>) -> Vec<&'a str>
 {
-    let mut v = ld_cmd();
+    let mut v = ld_cmd(output);
     v.append(objs);
     v
 }
