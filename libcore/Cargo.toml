@@ -2,9 +2,12 @@
 name = "libcore"
 version = "0.1.0"
 authors = ["eomain"]
-description = "the core of the compiler"
+description = "the core driver of the compiler pipeline"
 edition = "2018"
 
 [dependencies]
+libtoken = { path = "../libtoken" }
+libast = { path = "../libast" }
 liblex = { path = "../liblex" }
 libparse = { path = "../libparse" }
+libgen = { path = "../libgen" }
