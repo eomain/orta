@@ -1,0 +1,8 @@
+
+pure fun test(): int {
+    return 2 + 3 * 4;
+}
+
+pure fun main() {
+    test();
+}

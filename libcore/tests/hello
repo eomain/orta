@@ -1,0 +1,4 @@
+
+pure fun main() {
+    print("hello world");
+}
