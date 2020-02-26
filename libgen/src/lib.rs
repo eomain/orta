@@ -50,10 +50,11 @@ impl<W> CodeUnit<W>
 // Entry point into the module. It takes a `CodeGen` target format,
 // that the `SyntaxTree` will be converted into and outputs this
 // with the `CodeUnit`.
-pub fn make<W>(cg: CodeGen, mut u: CodeUnit<W>, tree: &SyntaxTree)
+pub fn make<W>(cg: CodeGen, mut u: CodeUnit<W>, tree: &SyntaxTree) -> W
     where W: std::io::Write
 {
     cg.begin(&mut u, tree);
+    u.output
 }
 
 pub trait Output {
