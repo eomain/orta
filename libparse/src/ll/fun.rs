@@ -39,18 +39,20 @@ fn params(info: &mut ParseInfo) -> PResult<ParamList>
     Ok(params)
 }
 
-fn props(info: &mut ParseInfo, prop: &mut FunctionProp)
+// Parse function properties
+fn props(info: &mut ParseInfo) -> FunctionProp
 {
+    let mut prop = FunctionProp::default();
     if token_is!(Key::Pure.token(), info) {
         prop.pure();
     }
+    prop
 }
 
 // Parse a function
 pub fn function(info: &mut ParseInfo) -> PResult<Function>
 {
-    let mut prop = FunctionProp::default();
-    props(info,  &mut prop);
+    let mut prop = props(info);
     token!(Key::Fun.token(), info.next())?;
 
     let name = id(info)?;
