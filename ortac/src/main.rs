@@ -2,6 +2,8 @@
 extern crate libcore;
 extern crate clap;
 
+mod ext;
+
 use libcore::InputStream;
 use libcore::BuildCommand;
 use libcore::OutputFormat;
@@ -53,25 +55,41 @@ fn main()
     let m = app.clone().get_matches();
     let mut format = OutputFormat::BIN;
     let input = m.value_of("INPUT").unwrap();
-    let mut output = "out";
-    if m.is_present("output") {
-        output = m.value_of("output").unwrap();
+    let mut output = String::from("out");
+    let name = m.is_present("output");
+    if name {
+        output = m.value_of("output").unwrap().into();
     }
 
     if m.is_present("emit") {
         match m.value_of("emit").unwrap() {
             "llvm" => {
-                format = OutputFormat::IR(CodeGen::LLVM)
+                format = OutputFormat::IR(CodeGen::LLVM);
+                if !name {
+                    if let Some(s) = ext::llvm(input) {
+                        output = s;
+                    }
+                }
             },
             _ => ()
         }
     }
     if m.is_present("asm") {
         format = OutputFormat::ASM;
+        if !name {
+            if let Some(s) = ext::asm(input) {
+                output = s;
+            }
+        }
     }
     if m.is_present("obj") {
         format = OutputFormat::OBJ;
+        if !name {
+            if let Some(s) = ext::obj(input) {
+                output = s;
+            }
+        }
     }
 
-    build(input, output, format);
+    build(input, &output, format);
 }
