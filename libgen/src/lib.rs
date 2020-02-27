@@ -69,6 +69,9 @@ mod tests {
     use libast::IntType;
     use libast::DataType;
     use libast::ParamList;
+    use libast::Function;
+    use libast::FunctionProp;
+    use libast::SyntaxTree;
 
     use crate::*;
 
@@ -119,10 +122,10 @@ mod tests {
             bexpr, ret
         ];
 
-        let function = libast::Function::new(name, param, rtype, expr);
-        let ast = libast::SyntaxTree {
-            functions: vec![function]
-        };
+        let prop = FunctionProp::default();
+        let function = Function::new(name, prop, param, rtype, expr);
+        let mut ast = SyntaxTree::new();
+        ast.append(function);
 
         make(cg, unit, &ast);
     }
