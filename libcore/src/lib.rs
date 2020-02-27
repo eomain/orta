@@ -136,6 +136,9 @@ fn compile(output: Option<&str>) -> Vec<&str>
     }
 }
 
+// Runtime library
+static RTLIB: &str = include_str!("../rt.ll");
+
 fn asm(output: &str) -> Vec<&str>
 {
     vec![
@@ -160,9 +163,13 @@ fn ld_cmd(output: &str) -> Vec<&str>
     ]
 }
 
+// Default program entry point
+static ENTRY: &str = "_start";
+
 fn ld<'a>(output: &'a str, objs: &mut Vec<&'a str>) -> Vec<&'a str>
 {
     let mut v = ld_cmd(output);
+    v.append(&mut vec!["-lc", "-e", ENTRY]);
     v.append(objs);
     v
 }
@@ -277,6 +284,19 @@ impl BuildCommand {
         self
     }
 
+    fn libs(&mut self, s: &mut String)
+    {
+        if self.format == OutputFormat::BIN {
+            s.push('\n');
+            s.push_str(RTLIB);
+        }
+    }
+
+    fn name(&self) -> &str
+    {
+        self.output.to_str().unwrap()
+    }
+
     fn exec(&mut self) -> Result<(), Error>
     {
         let input = input(&mut self.input)?;
@@ -284,7 +304,8 @@ impl BuildCommand {
         let ast = parse(tokens)?;
 
         let cg = self.codegen();
-        let ir = codegen(&ast, cg, "");
+        let mut ir = codegen(&ast, cg, "");
+        self.libs(&mut ir);
 
         use OutputFormat::*;
 
@@ -300,7 +321,7 @@ impl BuildCommand {
             let mut pl = pipe::Pipeline::new(&ir);
 
             if let ASM = self.format {
-                let out = Some(self.output.to_str().unwrap());
+                let out = Some(self.name());
                 let comp = compile(out);
                 pl.add(&comp);
                 pl.run_with(clean);
@@ -310,14 +331,24 @@ impl BuildCommand {
             let comp = compile(None);
             pl.add(&comp);
 
-            let obj = asm(if let OBJ = self.format {
-                self.output.to_str().unwrap()
-            } else {
-                "tmp.o"
-            });
-            pl.add(&obj);
+            if let OBJ = self.format {
+                let out = self.name();
+                let obj = asm(out);
+                pl.add(&obj);
+                pl.run_with(clean);
+                return Ok(());
+            }
 
+            let name = "tmp.o";
+            let obj = asm(name);
+            pl.add(&obj);
             pl.run_with(clean);
+
+            let out = self.name();
+            let mut args = vec![name];
+            let args = ld(out, &mut args);
+            pipe::exec(&args);
+            fs::remove_file(name);
         }
         Ok(())
     }
@@ -326,15 +357,6 @@ impl BuildCommand {
     {
         self.exec()
     }
-}
-
-pub fn main(commands: &mut Vec<BuildCommand>) -> Result<(), &str>
-{
-    for command in commands {
-        command.exec()?;
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

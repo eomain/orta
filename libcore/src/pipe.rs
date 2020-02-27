@@ -4,7 +4,7 @@ use std::io::Result;
 use std::process::Command;
 use std::process::{ Output, Stdio };
 
-fn exec(command: &[&str])
+pub fn exec(command: &[&str])
 {
     let (name, args) = command.split_first().unwrap();
     let mut c = Command::new(name)

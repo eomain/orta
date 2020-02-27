@@ -1,6 +1,6 @@
 
 ; programs main function
-declare void @main()
+; declare void @main()
 
 ; terminate program by default
 declare void @exit(i32)
