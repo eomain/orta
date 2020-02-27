@@ -86,6 +86,7 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                     Key::Fun => {
                         let f = fun::function(info)?;
                         tree.append(f);
+                        continue;
                     },
                     _ => unimplemented!()
                 }
