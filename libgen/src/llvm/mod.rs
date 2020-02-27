@@ -146,6 +146,7 @@ impl Output for Module {
         where W: std::io::Write
     {
         for v in &self.values {
+            writeln!(w);
             v.output(w);
         }
     }
