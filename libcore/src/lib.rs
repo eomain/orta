@@ -15,6 +15,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use libtoken::TokenStream;
 use libast::SyntaxTree;
+pub use libgen::CodeGen;
 
 #[derive(Debug)]
 pub enum InputStream {
@@ -194,7 +195,7 @@ mod output {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-enum OutputFormat {
+pub enum OutputFormat {
     IR(libgen::CodeGen),
     ASM,
     OBJ,
@@ -240,6 +241,12 @@ impl BuildCommand {
         } else {
             libgen::CodeGen::LLVM
         }
+    }
+
+    pub fn format(mut self, f: OutputFormat) -> Self
+    {
+        self.format = f;
+        self
     }
 
     // Output IR
@@ -315,7 +322,7 @@ impl BuildCommand {
         Ok(())
     }
 
-    fn build(mut self) -> Result<(), Error>
+    pub fn build(mut self) -> Result<(), Error>
     {
         self.exec()
     }
