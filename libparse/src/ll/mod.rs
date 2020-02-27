@@ -78,10 +78,11 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
 {
     let mut tree = SyntaxTree::new();
 
-    while let Some(token) = info.next() {
+    while let Some(token) = info.look() {
         match token {
             Token::Keyword(k) => {
                 match k {
+                    Key::Pure |
                     Key::Fun => {
                         let f = fun::function(info)?;
                         tree.append(f);
@@ -91,7 +92,13 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
             },
             _ => unimplemented!()
         }
+        info.next();
     }
 
     Ok(tree)
+}
+
+#[cfg(test)]
+mod tests {
+
 }

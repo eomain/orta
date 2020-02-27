@@ -24,6 +24,24 @@ macro_rules! token {
 }
 
 #[macro_export]
+macro_rules! token_is {
+    ($x: expr, $parser: expr) => {
+        {
+            if let Some(token) = $parser.look() {
+                if *token == $x {
+                    $parser.next();
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! parser_error {
     ($x: expr, $y: expr) => {
 

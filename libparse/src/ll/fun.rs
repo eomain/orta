@@ -8,6 +8,7 @@ use libtoken::Token;
 use libtoken::IntoToken;
 use libtoken::Key;
 use libast::Function;
+use libast::FunctionProp;
 use libast::ParamList;
 
 // Parse a single function parameter
@@ -38,9 +39,20 @@ fn params(info: &mut ParseInfo) -> PResult<ParamList>
     Ok(params)
 }
 
+fn props(info: &mut ParseInfo, prop: &mut FunctionProp)
+{
+    if token_is!(Key::Pure.token(), info) {
+        prop.pure();
+    }
+}
+
 // Parse a function
 pub fn function(info: &mut ParseInfo) -> PResult<Function>
 {
+    let mut prop = FunctionProp::default();
+    props(info,  &mut prop);
+    token!(Key::Fun.token(), info.next())?;
+
     let name = id(info)?;
     let param = params(info)?;
 
@@ -55,7 +67,7 @@ pub fn function(info: &mut ParseInfo) -> PResult<Function>
         Ok(vec![])
     })?;
 
-    Ok(Function::new(&name, param, rtype, expr))
+    Ok(Function::new(&name, prop, param, rtype, expr))
 }
 
 #[cfg(test)]
@@ -69,7 +81,8 @@ mod tests {
     fn fun()
     {
         let tokens = vec![
-            //Token::Keyword(Key::Fun),
+            Token::Keyword(Key::Pure),
+            Token::Keyword(Key::Fun),
             Token::Symbol("main".into()),
             Token::Lparen,
             Token::Rparen,
@@ -78,7 +91,9 @@ mod tests {
         ];
 
         let mut info = ParseInfo::new(tokens);
-        let f = function(&mut info);
-        println!("{:?}", f);
+        let f = function(&mut info).unwrap();
+        let p = &f.prop;
+        assert_eq!("main", &f.name);
+        assert_eq!(p.pure, true);
     }
 }
