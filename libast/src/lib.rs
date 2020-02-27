@@ -225,11 +225,34 @@ impl From<&ParamList> for Vec<(String, DataType)> {
     }
 }
 
+// Set of properties defined for a function
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionProp {
+    // if the function is pure
+    pub pure: bool
+}
+
+impl FunctionProp {
+    pub fn default() -> Self
+    {
+        Self {
+            pure: false
+        }
+    }
+
+    pub fn pure(&mut self)
+    {
+        self.pure = true;
+    }
+}
+
 // An abstract representation of a program function
 #[derive(Debug)]
 pub struct Function {
     // the name of the function
     pub name: String,
+    // the properties of the function
+    pub prop: FunctionProp,
     // the sequence of parameters accepted by the function
     pub param: ParamList,
     // the return type of the function
@@ -240,11 +263,12 @@ pub struct Function {
 
 impl Function {
     // Create a new function
-    pub fn new(name: &str, param: ParamList,
+    pub fn new(name: &str, prop: FunctionProp, param: ParamList,
                ret: DataType, expr: ExprList) -> Self
     {
         Self {
             name: name.into(),
+            prop,
             param,
             ret,
             expr
