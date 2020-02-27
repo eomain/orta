@@ -52,7 +52,7 @@ fn props(info: &mut ParseInfo) -> FunctionProp
 // Parse a function
 pub fn function(info: &mut ParseInfo) -> PResult<Function>
 {
-    let mut prop = props(info);
+    let prop = props(info);
     token!(Key::Fun.token(), info.next())?;
 
     let name = id(info)?;
