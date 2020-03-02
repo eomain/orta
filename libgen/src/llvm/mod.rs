@@ -103,6 +103,24 @@ fn param(p: &Vec<(Type, Register)>) -> String
     s
 }
 
+fn param_val(p: &Vec<(Type, Value)>) -> String
+{
+    let mut s = String::new();
+    if p.len() > 0 {
+        let mut arg = &p[0];
+        let mut t: String = arg.0.clone().into();
+        let mut v = &arg.1;
+        s.push_str(&format!("{} {}", t, v));
+        for i in 1..p.len() {
+            arg = &p[i];
+            t = arg.0.clone().into();
+            v = &arg.1;
+            s.push_str(&format!(", {} {}", t, v));
+        }
+    }
+    s
+}
+
 fn param_dec(p: &Vec<Type>) -> String
 {
     let mut s = String::new();
@@ -152,7 +170,7 @@ impl Output for Module {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Void,
     Int(usize),
@@ -197,7 +215,8 @@ impl fmt::Display for Type {
 pub enum Value {
     Int(isize),
     Uint(usize),
-    Reg(Register)
+    Reg(Register),
+    Global(Rc<GlobalId>)
 }
 
 impl From<Value> for String
@@ -208,7 +227,8 @@ impl From<Value> for String
         match v {
             Int(i) => format!("{}", i),
             Uint(u) => format!("{}", u),
-            Reg(r) => r.id
+            Reg(r) => r.id,
+            Global(g) => g.id.clone()
         }
     }
 }
@@ -224,7 +244,8 @@ impl fmt::Display for Value {
 #[derive(Debug, Clone)]
 pub enum Operation {
     Add(Register, Value, Value),
-    Call,
+    Call(Option<Register>, GlobalId, Option<Vec<(Type, Value)>>),
+    GetElPtr(Register, (Type, Rc<GlobalId>), Vec<(Type, Value)>),
     Mul(Register, Value, Value),
     Ret(Option<Value>),
     Sub(Register, Value, Value),
@@ -240,7 +261,8 @@ impl Operation {
         use Operation::*;
         match self {
             Add(_, _, _) => "add",
-            Call => "call",
+            Call(_, _, _) => "call",
+            GetElPtr(_, _, _) => "getelementptr",
             Mul(_, _, _) => "mul",
             Ret(_) => "ret",
             Sub(_, _, _) => "sub",
@@ -266,6 +288,19 @@ impl Operation {
                 None => None,
                 Some(v) => Some(format!("{}", v))
             },
+            Call(_, g, args) => {
+                match args {
+                    None => Some(format!("{}()", g.id)),
+                    Some(args) => {
+                        let p = param_val(args);
+                        Some(format!("{}({})", g.id, p))
+                    }
+                }
+            },
+            GetElPtr(_, ptr, indexes) => {
+                let p = param_val(indexes);
+                Some(format!(", {} {}, {}", ptr.0, ptr.1.id, p))
+            }
             _ => None
         }
     }
@@ -281,6 +316,7 @@ impl Operation {
             Srem(r, _, _) |
             Udiv(r, _, _) |
             Urem(r, _, _) => Some(r.id.clone()),
+            GetElPtr(r, _, _) => Some(r.id.clone()),
             _ => None
         }
     }
@@ -361,9 +397,68 @@ pub struct GlobalId {
     id: String
 }
 
+impl GlobalId {
+    pub fn new(id: &str) -> Self
+    {
+        Self {
+            id: gid(id)
+        }
+    }
+}
+
+impl AsRef<str> for GlobalId {
+    fn as_ref(&self) -> &str
+    {
+        &self.id
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Constant {
     String(Rc<GlobalId>, String)
+}
+
+impl Constant {
+    pub fn get_type(&self) -> Type
+    {
+        use Constant::*;
+        match self {
+            String(_, s) => {
+                let len = s.len() + 1;
+                Type::Array(len, Box::new(Type::Int(8)))
+            }
+        }
+    }
+}
+
+impl Output for Constant {
+    fn output<W>(&self, w: &mut W)
+        where W: std::io::Write
+    {
+        use Constant::*;
+        match self {
+            String(g, s) => {
+                let len = s.len() + 1;
+                let s = format!("{}\\00", s);
+                writeln!(w, "{} = constant [{} x i8] c\"{}\"", g.id, len, s);
+            }
+        }
+    }
+}
+
+impl From<Constant> for GlobalValue {
+    fn from(c: Constant) -> Self
+    {
+        GlobalValue::Constant(c)
+    }
+}
+
+#[test]
+fn constant()
+{
+    let id = Rc::new(GlobalId::new("str"));
+    let c = Constant::String(id, "hello world".into());
+    c.output(&mut std::io::stdout());
 }
 
 #[derive(Debug, Clone)]
@@ -490,6 +585,7 @@ impl Output for FunctionDec {
 
 #[derive(Debug, Clone)]
 enum GlobalValue {
+    Constant(Constant),
     Global(Global),
     Function(Function),
     FunctionDec(FunctionDec)
@@ -501,6 +597,7 @@ impl Output for GlobalValue {
     {
         use GlobalValue::*;
         match self {
+            Constant(c) => c.output(w),
             Global(g) => g.output(w),
             Function(f) => f.output(w),
             FunctionDec(d) => d.output(w)
