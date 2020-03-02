@@ -27,7 +27,18 @@ pub struct Tuple {
 // A data record or structure, data type
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataRecord {
-    attr: Vec<(String, DataType)>
+    pub name: String,
+    pub attr: Vec<(String, DataType)>
+}
+
+impl DataRecord {
+    pub fn new(name: String, attr: Vec<(String, DataType)>) -> Self
+    {
+        Self {
+            name,
+            attr
+        }
+    }
 }
 
 // Convert a record into an equivalent tuple
@@ -48,8 +59,8 @@ pub enum DataType {
     Boolean,
     Tuple(Tuple),
     Array(Box<DataType>),
-    //Record(Rc<DataRecord>),
-    Record(String),
+    Record(Rc<DataRecord>),
+    //Record(String),
     Function(Tuple, Box<DataType>)
 }
 
