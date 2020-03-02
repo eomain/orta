@@ -286,9 +286,12 @@ impl BuildCommand {
 
     fn libs(&mut self, s: &mut String)
     {
-        if self.format == OutputFormat::BIN {
-            s.push('\n');
-            s.push_str(RTLIB);
+        match self.format {
+            OutputFormat::IR(_) => (),
+            _ => {
+                s.push('\n');
+                s.push_str(RTLIB);
+            }
         }
     }
 
