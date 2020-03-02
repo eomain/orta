@@ -139,7 +139,7 @@ fn ident(lexer: &mut Lexer) -> Token
     lexer.string.token()
 }
 
-static KEYWORDS: [(&str, Key); 9] = [
+static KEYWORDS: [(&str, Key); 10] = [
     ("fun", Key::Fun),
     ("pure", Key::Pure),
     ("if", Key::If),
@@ -148,7 +148,8 @@ static KEYWORDS: [(&str, Key); 9] = [
     ("for", Key::For),
     ("true", Key::True),
     ("false", Key::False),
-    ("return", Key::Return)
+    ("return", Key::Return),
+    ("let", Key::Let)
 ];
 
 static KEYWORDS_PRIM: [(&str, Prim); 11] = [
@@ -278,6 +279,7 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 ':' => Token::Colon,
                 ';' => Token::Semi,
                 ',' => Token::Comma,
+                '=' => Token::Assign,
                 '+' | '-' | '*' | '/' | '%' => {
                     operator(&mut lexer, c)
                 },
