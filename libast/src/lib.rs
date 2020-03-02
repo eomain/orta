@@ -62,14 +62,14 @@ impl DataType {
 }
 
 // A variable identifier
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Variable {
     pub name: String
 }
 
 // A value that can be either a
 // literal or a value denoted by a variable
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     /// returns an empty value `()`
     Unit,
@@ -78,7 +78,7 @@ pub enum Value {
 }
 
 /// An expression that evaluates to a value
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Value(Value),
     Binary(BinaryExpr),
@@ -88,7 +88,28 @@ pub enum Expr {
     Call(CallExpr)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct Assign {
+    pub id: String,
+    pub expr: Expr
+}
+
+impl Assign {
+    pub fn new(id: &str, expr: Expr) -> Self
+    {
+        Self {
+            id: id.into(),
+            expr
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Stmt {
+    Assign(Assign)
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum BinaryExpr {
     Add(Box<Expr>, Box<Expr>),
     Sub(Box<Expr>, Box<Expr>),
@@ -97,14 +118,14 @@ pub enum BinaryExpr {
     Mod(Box<Expr>, Box<Expr>)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LogicalExpr {
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
     Not(Box<Expr>, Box<Expr>)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CompExpr {
     Eq(Box<Expr>, Box<Expr>),
     Ne(Box<Expr>, Box<Expr>),
@@ -116,25 +137,25 @@ pub enum CompExpr {
 
 pub type BoolExpr = CompExpr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IfExpr {
     cond: BoolExpr,
     expr: ExprList
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WhileExpr {
     cond: BoolExpr,
     expr: ExprList
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Return {
     pub dtype: DataType,
     pub expr: Option<Box<Expr>>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CallExpr {
     pub name: String,
     //pub dtype: DataType,
@@ -150,12 +171,6 @@ impl CallExpr {
             args
         }
     }
-}
-
-#[derive(Debug)]
-pub struct Assign {
-    pub var: Variable,
-    pub expr: Box<Expr>
 }
 
 /// A sequence of expressions
