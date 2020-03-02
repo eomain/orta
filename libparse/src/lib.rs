@@ -85,6 +85,11 @@ impl ParseInfo {
     {
         self.tokens.get(self.index)
     }
+
+    fn peek(&self) -> Option<&Token>
+    {
+        self.tokens.get(self.index + 1)
+    }
 }
 
 #[derive(Debug, PartialEq)]

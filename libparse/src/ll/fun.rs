@@ -66,7 +66,12 @@ pub fn function(info: &mut ParseInfo) -> PResult<Function>
     };
 
     let expr = block(info, |i| {
-        Ok(vec![])
+        let mut e = Vec::new();
+        while Some(&Token::Rbrace) != i.look() {
+            e.push(super::expr(i)?);
+            token!(Token::Semi, i.next())?;
+        }
+        Ok(e)
     })?;
 
     Ok(Function::new(&name, prop, param, rtype, expr))

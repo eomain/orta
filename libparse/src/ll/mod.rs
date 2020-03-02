@@ -14,8 +14,8 @@ use libtoken::ArithmeticOperator;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
-use libast::Expr;
-use libast::BinaryExpr;
+use libast::{ Expr, ExprList };
+use libast::{ BinaryExpr, CallExpr };
 use libast::DataType;
 use libast::IntType;
 use libast::ParamList;
@@ -37,7 +37,10 @@ fn id(info: &mut ParseInfo) -> PResult<String>
 // Transforms token into the respective data type
 fn types(info: &mut ParseInfo) -> PResult<DataType>
 {
-    Ok(match info.next().unwrap() {
+    let msg = "expected type";
+    let token = info.next()
+                    .ok_or(Error::from(msg))?;
+    Ok(match token {
         Token::Primitive(p) => {
             match p {
                 Prim::U8 => DataType::Integer(IntType::U8),
@@ -55,8 +58,63 @@ fn types(info: &mut ParseInfo) -> PResult<DataType>
         Token::Symbol(s) => {
             unimplemented!()
         },
-        _ => { return Err("expected return type".into()); }
+
+        _ => return Err(Error::from(msg))
     })
+}
+
+// Obtains a value from a variable or literal
+fn value(info: &mut ParseInfo) -> PResult<Value>
+{
+    let msg = "expected variable or literal";
+    let token = info.next()
+                    .ok_or(Error::from(msg))?;
+    match token {
+        Token::Literal(l) => Ok(Value::Literal(l.clone())),
+        Token::Symbol(s) => Ok(Value::Variable(s.clone())),
+        _ => Err(Error::from(msg))
+    }
+}
+
+// A function call expression of the form `<id>(<expr>, <expr>, ...)`
+fn call(info: &mut ParseInfo) -> PResult<CallExpr>
+{
+    let name = id(info)?;
+    token!(Token::Lparen, info.next())?;
+    let exprs = expr_list(info, &Token::Rparen, Token::Comma)?;
+    token!(Token::Rparen, info.next())?;
+    Ok(CallExpr::new(&name, exprs))
+}
+
+fn expr(info: &mut ParseInfo) -> PResult<Expr>
+{
+    let token = info.look()
+                    .ok_or(Error::from("expected expression"))?;
+    match token {
+        Token::Symbol(_) => {
+            if Some(&Token::Lparen) == info.peek() {
+                Ok(Expr::Call(call(info)?))
+            } else {
+                Ok(Expr::Value(value(info)?))
+            }
+        },
+        Token::Literal(_) => {
+            Ok(Expr::Value(value(info)?))
+        }
+        _ => unimplemented!()
+    }
+}
+
+fn expr_list(info: &mut ParseInfo, until: &Token, sep: Token) -> PResult<ExprList>
+{
+    let mut e = Vec::new();
+    while Some(until) != info.look() {
+        e.push(expr(info)?);
+        if Some(until) != info.look() {
+            token!(sep.clone(), info.next())?;
+        }
+    }
+    Ok(e)
 }
 
 // Parses a block with a pair of braces.
