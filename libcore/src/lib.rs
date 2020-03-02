@@ -146,7 +146,7 @@ fn asm(output: &str) -> Vec<&str>
     ]
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
 fn ld_cmd(output: &str) -> Vec<&str>
 {
     vec![
@@ -154,7 +154,7 @@ fn ld_cmd(output: &str) -> Vec<&str>
     ]
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn ld_cmd(output: &str) -> Vec<&str>
 {
     vec![
