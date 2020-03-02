@@ -136,7 +136,20 @@ pub struct Return {
 
 #[derive(Debug)]
 pub struct CallExpr {
+    pub name: String,
+    //pub dtype: DataType,
     pub args: ExprList
+}
+
+impl CallExpr {
+    pub fn new(name: &str, args: ExprList) -> Self
+    {
+        Self {
+            name: name.into(),
+            //dtype,
+            args
+        }
+    }
 }
 
 #[derive(Debug)]
