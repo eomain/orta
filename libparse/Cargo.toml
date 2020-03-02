@@ -8,3 +8,6 @@ edition = "2018"
 [dependencies]
 libast = { path = "../libast" }
 libtoken = { path = "../libtoken" }
+
+[dev-dependencies]
+liblex = { path = "../liblex" }
