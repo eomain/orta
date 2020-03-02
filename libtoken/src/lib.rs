@@ -21,7 +21,8 @@ pub enum Token {
     Period,
     Colon,
     Semi,
-    Comma
+    Comma,
+    Assign
 }
 
 // language reserved keywords
@@ -35,7 +36,8 @@ pub enum Key {
     For,
     True,
     False,
-    Return
+    Return,
+    Let
 }
 
 impl IntoToken for Key {
