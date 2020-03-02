@@ -37,7 +37,8 @@ pub enum Key {
     True,
     False,
     Return,
-    Let
+    Let,
+    Type
 }
 
 impl IntoToken for Key {
