@@ -1,0 +1,13 @@
+
+/* User defined data type */
+type Data {
+    /* first member is an int */
+    a: int,
+    /* second member is also an int */
+    b: int
+}
+
+fun main()
+{
+    print("this is a test program");
+}
