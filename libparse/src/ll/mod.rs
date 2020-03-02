@@ -14,6 +14,7 @@ use libtoken::ArithmeticOperator;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
+use libast::Assign;
 use libast::{ Expr, ExprList };
 use libast::{ BinaryExpr, CallExpr };
 use libast::DataType;
@@ -76,6 +77,29 @@ fn value(info: &mut ParseInfo) -> PResult<Value>
     }
 }
 
+fn assign_let(info: &mut ParseInfo) -> PResult<Assign>
+{
+    token!(Token::Keyword(Key::Let), info.next())?;
+    let id = id(info)?;
+    token!(Token::Assign, info.next())?;
+    let expr = expr(info)?;
+    Ok(Assign::new(&id, expr))
+}
+
+#[test]
+fn assign_let_test()
+{
+    extern crate liblex;
+
+    let tokens = liblex::scan(r#"let x = "test""#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let assign = assign_let(&mut info).unwrap();
+
+    assert_eq!(assign.id, String::from("x"));
+    assert_eq!(assign.expr, Expr::Value(Value::Literal(Literal::String("test".into()))));
+}
+
 // A function call expression of the form `<id>(<expr>, <expr>, ...)`
 fn call(info: &mut ParseInfo) -> PResult<CallExpr>
 {
@@ -84,6 +108,20 @@ fn call(info: &mut ParseInfo) -> PResult<CallExpr>
     let exprs = expr_list(info, &Token::Rparen, Token::Comma)?;
     token!(Token::Rparen, info.next())?;
     Ok(CallExpr::new(&name, exprs))
+}
+
+#[test]
+fn assign_call_test()
+{
+    extern crate liblex;
+
+    let tokens = liblex::scan(r#"main("input")"#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let call = call(&mut info).unwrap();
+
+    assert_eq!(call.name, String::from("main"));
+    assert_eq!(call.args[0], Expr::Value(Value::Literal(Literal::String("input".into()))));
 }
 
 fn expr(info: &mut ParseInfo) -> PResult<Expr>

@@ -79,6 +79,8 @@ pub fn function(info: &mut ParseInfo) -> PResult<Function>
 
 #[cfg(test)]
 mod tests {
+    extern crate liblex;
+
     use super::*;
     use crate::ParseInfo;
     use libtoken::Token;
@@ -87,15 +89,11 @@ mod tests {
     #[test]
     fn fun()
     {
-        let tokens = vec![
-            Token::Keyword(Key::Pure),
-            Token::Keyword(Key::Fun),
-            Token::Symbol("main".into()),
-            Token::Lparen,
-            Token::Rparen,
-            Token::Lbrace,
-            Token::Rbrace
-        ];
+        let tokens = liblex::scan(r#"
+            pure fun main() {
+
+            }
+        "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
         let f = function(&mut info).unwrap();
