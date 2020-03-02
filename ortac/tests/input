@@ -1,4 +1,14 @@
 
-fun main() {
-    
+/* simple function called run */
+fun run()
+{
+    /* print string to standard output */
+    print("program running...");
+}
+
+/* programs entry point */
+fun main()
+{
+    /* invoke the run function */
+    run();
 }
