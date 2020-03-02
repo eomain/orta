@@ -1,6 +1,7 @@
 
 mod expr;
 mod fun;
+mod meta;
 
 use super::arithmetic::precedence;
 use super::Error;
@@ -182,6 +183,11 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                     Key::Fun => {
                         let f = fun::function(info)?;
                         tree.append(f);
+                        continue;
+                    },
+                    Key::Type => {
+                        meta::structure(info)?;
+                        // TODO
                         continue;
                     },
                     _ => unimplemented!()
