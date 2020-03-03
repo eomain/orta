@@ -178,7 +178,8 @@ pub enum Type {
     Float,
     Double,
     Array(usize, Box<Type>),
-    Pointer(Box<Type>)
+    Pointer(Box<Type>),
+    Types(Rc<Register>, Vec<Type>)
 }
 
 impl From<Type> for String {
@@ -198,6 +199,10 @@ impl From<Type> for String {
             Pointer(t) => {
                 let t: String = (*t).into();
                 format!("{}*", t)
+            },
+            Types(r, t) => {
+                let p = param_dec(&t);
+                format!("{} = type {{ {} }}", r.id, p)
             }
         }
     }
@@ -550,7 +555,7 @@ pub struct FunctionDec {
 }
 
 impl FunctionDec {
-    fn new(name: &str, param: Option<Vec<Type>>, ret: Type) -> Self
+    pub fn new(name: &str, param: Option<Vec<Type>>, ret: Type) -> Self
     {
         Self {
             name: gid(name),

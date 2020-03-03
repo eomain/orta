@@ -66,6 +66,16 @@ fn type_cast(dtype: &ast::DataType) -> Type
     }
 }
 
+fn types_cast(d: &ast::DataRecord) -> Type
+{
+    let name = &d.name;
+    let mut v = Vec::new();
+    for attr in &d.attr {
+        v.push(type_cast(&attr.1));
+    }
+    Type::Types(Rc::new(Register::new(name)), v)
+}
+
 fn constant(c: &mut Context, l: &ast::Literal) -> (Constant, Rc<GlobalId>)
 {
     use ast::Literal::*;
@@ -114,6 +124,17 @@ fn value(c: &mut Context, val: &ast::Value, v: &mut Vec<Inst>) -> Option<Vec<Val
         Literal(l) => literal(c, l, v),
         Variable(_) => unimplemented!()
     }])
+}
+
+// TODO:
+fn value_to_type(v: &Value) -> Type
+{
+    match v {
+        Value::Int(i) => Type::Int(64),
+        Value::Uint(u) => Type::Uint(64),
+        Value::Global(g) => Type::Pointer(Box::new(Type::Int(8))),
+        _ => unimplemented!()
+    }
 }
 
 #[test]
@@ -175,6 +196,7 @@ fn call(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Option<Vec<Val
 
     let mut args = if e.args.len() > 0 {
         let mut exprs = Vec::new();
+        // TODO: remove
         let t = Type::Pointer(Box::new(Type::Int(8)));
         for exp in &e.args {
             if let Some(e) = expr(c, exp, v) {
@@ -236,11 +258,33 @@ fn function(c: &mut Context, func: &ast::Function) -> Function
     f
 }
 
+fn declare(f: &ast::FunctionDec) -> FunctionDec
+{
+    let name = &f.name;
+    let paramlist: &Vec<_> = &f.param;
+    let param: Option<Vec<Type>> = if paramlist.len() == 0 {
+        None
+    } else {
+        Some(paramlist.iter()
+                      .map(|a| type_cast(&a)).collect())
+    };
+    let ret = type_cast(&f.ret);
+    FunctionDec::new(name, param, ret)
+}
+
 // Create a new LLVM module from an AST
 pub fn main(name: &str, tree: &ast::SyntaxTree) -> Module
 {
     let mut module = Module::new(name);
     let mut id = Id::new();
+
+    for d in &tree.declarations {
+        module.append(declare(d));
+    }
+
+    for r in &tree.records {
+        types_cast(r.1);
+    }
 
     for f in &tree.functions {
         let function = {
