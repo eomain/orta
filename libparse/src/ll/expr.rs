@@ -1,14 +1,33 @@
 
 use crate::arithmetic::precedence;
 use crate::ParseInfo;
+use super::*;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
 use libast::Expr;
+use libast::BoolExpr;
 use libast::BinaryExpr;
 use libtoken::Token;
 use libtoken::Operator;
 use libtoken::ArithmeticOperator;
+
+pub fn bexpr(info: &mut ParseInfo) -> PResult<BoolExpr>
+{
+    let msg = "expected boolean expression";
+    let token = info.next()
+                    .ok_or(Error::from(msg))?;
+    match token {
+        Token::Keyword(k) => {
+            match k {
+                Key::True => Ok(BoolExpr::Bool(true)),
+                Key::False => Ok(BoolExpr::Bool(false)),
+                _ => Err(Error::from(msg))
+            }
+        },
+        _ => Err(Error::from(msg))
+    }
+}
 
 fn literal(literal: &Literal) -> Value
 {

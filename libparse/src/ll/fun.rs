@@ -9,6 +9,7 @@ use libtoken::IntoToken;
 use libtoken::Key;
 use libast::Function;
 use libast::FunctionProp;
+use libast::FunctionDec;
 use libast::ParamList;
 
 // Parse a single function parameter
@@ -49,6 +50,17 @@ fn props(info: &mut ParseInfo) -> FunctionProp
     prop
 }
 
+// Parse function return type
+fn rtype(info: &mut ParseInfo) -> PResult<DataType>
+{
+    if Some(&Token::Colon) == info.look() {
+        info.next();
+        types(info)
+    } else {
+        Ok(DataType::Unit)
+    }
+}
+
 // Parse a function
 pub fn function(info: &mut ParseInfo) -> PResult<Function>
 {
@@ -57,24 +69,44 @@ pub fn function(info: &mut ParseInfo) -> PResult<Function>
 
     let name = id(info)?;
     let param = params(info)?;
-
-    let rtype = if Some(&Token::Colon) == info.look() {
-        info.next();
-        types(info)?
-    } else {
-        DataType::Unit
-    };
-
-    let expr = block(info, |i| {
-        let mut e = Vec::new();
-        while Some(&Token::Rbrace) != i.look() {
-            e.push(super::expr(i)?);
-            token!(Token::Semi, i.next())?;
-        }
-        Ok(e)
-    })?;
+    let rtype = rtype(info)?;
+    let expr = exprs(info)?;
 
     Ok(Function::new(&name, prop, param, rtype, expr))
+}
+
+// Parse a sequence of function parameter declarations
+fn params_dec(info: &mut ParseInfo) -> PResult<Vec<DataType>>
+{
+    token!(Token::Lparen, info.next())?;
+    let mut v = Vec::new();
+    if Some(&Token::Rparen) != info.look() {
+        let t = types(info)?;
+        v.push(t);
+
+        while Some(&Token::Comma) == info.look() {
+            info.next();
+            let t = types(info)?;
+            v.push(t);
+        }
+    }
+    token!(Token::Rparen, info.next())?;
+    Ok(v)
+}
+
+// Parse an external function declaration
+pub fn foreign(info: &mut ParseInfo) -> PResult<FunctionDec>
+{
+    token!(Token::Keyword(Key::Foreign), info.next())?;
+    token!(Key::Fun.token(), info.next())?;
+
+    let name = id(info)?;
+    let param = params_dec(info)?;
+    let rtype = rtype(info)?;
+
+    token!(Token::Semi, info.next())?;
+
+    Ok(FunctionDec::new(&name, param, rtype))
 }
 
 #[cfg(test)]
@@ -85,6 +117,8 @@ mod tests {
     use crate::ParseInfo;
     use libtoken::Token;
     use libtoken::Key;
+    use libast::DataType::*;
+    use libast::IntType::*;
 
     #[test]
     fn fun()
@@ -99,6 +133,20 @@ mod tests {
         let f = function(&mut info).unwrap();
         let p = &f.prop;
         assert_eq!("main", &f.name);
+        assert_eq!(Unit, f.ret);
         assert_eq!(p.pure, true);
+    }
+
+    #[test]
+    fn declare()
+    {
+        let tokens = liblex::scan(r#"
+            foreign fun add(int, int): int;
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let f = foreign(&mut info).unwrap();
+        assert_eq!("add", &f.name);
+        assert_eq!(Integer(S64), f.ret);
     }
 }

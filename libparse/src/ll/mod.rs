@@ -1,6 +1,8 @@
 
+mod branch;
 mod expr;
 mod fun;
+mod iter;
 mod meta;
 
 use super::arithmetic::precedence;
@@ -127,8 +129,9 @@ fn assign_call_test()
 
 fn expr(info: &mut ParseInfo) -> PResult<Expr>
 {
+    let msg = "expected expression";
     let token = info.look()
-                    .ok_or(Error::from("expected expression"))?;
+                    .ok_or(Error::from(msg))?;
     match token {
         Token::Symbol(_) => {
             if Some(&Token::Lparen) == info.peek() {
@@ -140,7 +143,13 @@ fn expr(info: &mut ParseInfo) -> PResult<Expr>
         Token::Literal(_) => {
             Ok(Expr::Value(value(info)?))
         }
-        _ => unimplemented!()
+        Token::Keyword(k) => {
+            match k {
+                Key::If => Ok(Expr::If(branch::conditional(info)?)),
+                _ => Err(Error::from(msg))
+            }
+        },
+        _ => Err(Error::from(msg))
     }
 }
 
@@ -154,6 +163,25 @@ fn expr_list(info: &mut ParseInfo, until: &Token, sep: Token) -> PResult<ExprLis
         }
     }
     Ok(e)
+}
+
+fn exprs(info: &mut ParseInfo) -> PResult<ExprList>
+{
+    Ok(block(info, |i| {
+        let mut e = Vec::new();
+        while Some(&Token::Rbrace) != i.look() {
+            let semi = match i.look() {
+                Some(&Token::Keyword(Key::If)) |
+                Some(&Token::Keyword(Key::While)) => false,
+                _ => true
+            };
+            e.push(expr(i)?);
+            if semi {
+                token!(Token::Semi, i.next())?;
+            }
+        }
+        Ok(e)
+    })?)
 }
 
 // Parses a block with a pair of braces.
@@ -183,19 +211,20 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                     Key::Fun => {
                         let f = fun::function(info)?;
                         tree.append(f);
-                        continue;
                     },
                     Key::Type => {
-                        meta::structure(info)?;
-                        // TODO
-                        continue;
+                        let s = meta::structure(info)?;
+                        tree.append_rec(s);
+                    },
+                    Key::Foreign => {
+                        let f = fun::foreign(info)?;
+                        tree.append_dec(f);
                     },
                     _ => unimplemented!()
                 }
             },
             _ => unimplemented!()
         }
-        info.next();
     }
 
     Ok(tree)
@@ -203,5 +232,30 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
 
 #[cfg(test)]
 mod tests {
+    extern crate liblex;
 
+    use super::*;
+    use crate::ParseInfo;
+    use libtoken::Token;
+    use libtoken::Key;
+    use libast::DataType::*;
+    use libast::IntType::*;
+
+    #[test]
+    fn prog_01()
+    {
+        let tokens = liblex::scan(r#"
+            fun main() {
+                if (true) {
+
+                } else {
+
+                }
+            }
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let p = main(&mut info).unwrap();
+        println!("{:?}", p);
+    }
 }
