@@ -102,7 +102,10 @@ fn scan(s: &String) -> Result<TokenStream, Error>
 {
     let chars: Vec<char> = s.chars().collect();
     match liblex::scan(chars) {
-        Err(_) => Err(Error::Scan),
+        Err(e) => {
+            eprintln!("error: {}", e);
+            Err(Error::Scan)
+        },
         Ok(tokens) => Ok(tokens)
     }
 
