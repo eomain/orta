@@ -1,6 +1,7 @@
 
 extern crate libtoken;
 
+use std::fmt;
 use std::io::Read;
 
 pub use libtoken::Token;
@@ -13,10 +14,32 @@ use libtoken::ArithmeticOperator;
 
 // The type returned if there is an error
 // found while lexing.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Error {
-    Invalid,
-    CommentEnd
+    Invalid(String),
+    CommentEnd(Cursor),
+    QuouteEnd(Cursor),
+    Custom(&'static str)
+}
+
+impl From<&Error> for String {
+    fn from(e: &Error) -> String
+    {
+        use Error::*;
+        match e {
+            Invalid(s) => format!("found invalid sequence: `{}`", s),
+            CommentEnd(c) => format!("expected a closing `*\\`, following the opening on {}", c),
+            QuouteEnd(c) => format!("expected a closing `\"`, following the opening on {}", c),
+            Custom(s) => (*s).into()
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "{}", String::from(self))
+    }
 }
 
 #[inline]
@@ -43,11 +66,37 @@ fn comment(lexer: &mut Lexer)
     /* TODO: return error */
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Cursor {
+    pub line: usize,
+    pub offset: usize,
+    pub index: usize
+}
+
+impl Cursor {
+    fn new() -> Self
+    {
+        Self {
+            line: 1,
+            offset: 1,
+            index: 0
+        }
+    }
+}
+
+impl fmt::Display for Cursor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "{}:{}", self.line, self.offset)
+    }
+}
+
 struct Lexer<'a> {
     stream: &'a mut TokenStream,
     input: Vec<char>,
     string: String,
-    index: usize
+    index: usize,
+    cursor: Cursor
 }
 
 impl<'a> Lexer<'a> {
@@ -57,7 +106,8 @@ impl<'a> Lexer<'a> {
             stream,
             input,
             string: String::new(),
-            index: 0
+            index: 0,
+            cursor: Cursor::new()
         }
     }
 
@@ -73,7 +123,18 @@ impl<'a> Lexer<'a> {
     fn next(&mut self) -> Option<char>
     {
         self.index += 1;
-        self.read()
+        match self.read() {
+            None => None,
+            Some(c) => {
+                if c == '\n' {
+                    self.cursor.line += 1;
+                    self.cursor.offset = 1;
+                } else {
+                    self.cursor.offset += 1;
+                }
+                Some(c)
+            }
+        }
     }
 
     fn ahead(&mut self) -> Option<char>
@@ -120,6 +181,18 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn skip_while<F>(&mut self, f: F)
+        where F: Fn(char) -> bool
+    {
+        let c = self.read().unwrap();
+        while let Some(c) = self.ahead() {
+            if !f(c) {
+                break;
+            }
+            self.next();
+        }
+    }
+
     fn accept(&mut self, token: Token)
     {
         self.stream.push(token);
@@ -127,19 +200,13 @@ impl<'a> Lexer<'a> {
     }
 }
 
-/*fn input<'a, 'b, I>(lex: &mut Lexer<'a, 'b, I>)
-   where I: Iterator<Item=&'a char>
-{
-
-}*/
-
 fn ident(lexer: &mut Lexer) -> Token
 {
     lexer.read_while(|c| alpha(c) || numeric(c) || c == '_');
     lexer.string.token()
 }
 
-static KEYWORDS: [(&str, Key); 11] = [
+static KEYWORDS: [(&str, Key); 13] = [
     ("fun", Key::Fun),
     ("pure", Key::Pure),
     ("if", Key::If),
@@ -150,7 +217,9 @@ static KEYWORDS: [(&str, Key); 11] = [
     ("false", Key::False),
     ("return", Key::Return),
     ("let", Key::Let),
-    ("type", Key::Type)
+    ("type", Key::Type),
+    ("foreign", Key::Foreign),
+    ("break", Key::Break)
 ];
 
 static KEYWORDS_PRIM: [(&str, Prim); 11] = [
@@ -215,14 +284,37 @@ fn number(lexer: &mut Lexer) -> Token
     lexer.string.parse::<usize>().unwrap().token()
 }
 
-fn string(lexer: &mut Lexer) -> Token
+fn escape(s: String, o: &str, n: &str) -> String
+{
+    match s.rfind(o) {
+        None => s,
+        Some(_) => s.replace(o, n)
+    }
+}
+
+static ESCAPE_CHARS: [(&str, &str); 4] = [
+    ("\\n", "\n"),
+    ("\\r", "\r"),
+    ("\\t", "\t"),
+    ("\\\\", "\\")
+];
+
+fn string(lexer: &mut Lexer) -> Result<Token, Error>
 {
     lexer.next();
+    let c = lexer.cursor.clone();
     lexer.read_while(|c| c != '"');
-    let token = Token::Literal(libtoken::Literal::String(lexer.string.to_string()));
+    let mut s = lexer.string.to_string();
+    for e in &ESCAPE_CHARS {
+        s = escape(s, e.0, e.1);
+    }
+    let token = Token::Literal(libtoken::Literal::String(s));
     /* TODO: check for `"` */
+    if Some('\"') != lexer.ahead() {
+        return Err(Error::QuouteEnd(c));
+    }
     lexer.next();
-    token
+    Ok(token)
 }
 
 fn operator(lexer: &mut Lexer, c: char) -> Token
@@ -267,6 +359,11 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                     lexer.next();
                     continue;
                 }
+                if lexer.check('/') {
+                    lexer.skip_while(|c| c != '\n');
+                    lexer.next();
+                    continue;
+                }
             }
 
             token = Some(match c {
@@ -287,7 +384,8 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 '0' => {
                     if let Some(c) = lexer.ahead() {
                         match c {
-                            '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => return Err(Error::Invalid),
+                            '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' =>
+                                return Err(Error::Custom("found a digit following `0`")),
                             _ => ()
                         }
                     }
@@ -297,7 +395,7 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                     number(&mut lexer)
                 },
                 '"' => {
-                    string(&mut lexer)
+                    string(&mut lexer)?
                 },
                 '_' => {
                     ident(&mut lexer)
@@ -314,7 +412,7 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                             ident(&mut lexer)
                         }
                     } else {
-                        return Err(Error::Invalid);
+                        return Err(Error::Invalid(format!("{}", c)));
                     }
                 }
             });
