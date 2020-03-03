@@ -117,7 +117,8 @@ impl Assign {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
-    Assign(Assign)
+    Assign(Assign),
+    Expr(Expr)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -146,18 +147,45 @@ pub enum CompExpr {
     Le(Box<Expr>, Box<Expr>)
 }
 
-pub type BoolExpr = CompExpr;
+#[derive(Debug, Clone, PartialEq)]
+pub enum BoolExpr {
+    Bool(bool),
+    Comp(CompExpr)
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IfExpr {
-    cond: BoolExpr,
-    expr: ExprList
+    pub cond: BoolExpr,
+    pub expr: ExprList,
+    //pub elif: Vec<(BoolExpr, ExprList)>,
+    pub other: Option<ExprList>,
+}
+
+impl IfExpr {
+    pub fn new(cond: BoolExpr, expr: ExprList, other: Option<ExprList>) -> Self
+    {
+        Self {
+            cond,
+            expr,
+            other
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WhileExpr {
-    cond: BoolExpr,
-    expr: ExprList
+    pub cond: BoolExpr,
+    pub expr: ExprList
+}
+
+impl WhileExpr {
+    pub fn new(cond: BoolExpr, expr: ExprList) -> Self
+    {
+        Self {
+            cond,
+            expr
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -286,7 +314,7 @@ impl FunctionProp {
 }
 
 // An abstract representation of a program function
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Function {
     // the name of the function
     pub name: String,
@@ -315,6 +343,24 @@ impl Function {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionDec {
+    pub name: String,
+    pub param: Vec<DataType>,
+    pub ret: DataType
+}
+
+impl FunctionDec {
+    pub fn new(name: &str, param: Vec<DataType>, ret: DataType) -> Self
+    {
+        Self {
+            name: name.into(),
+            param,
+            ret
+        }
+    }
+}
+
 // An abstract representation of program,
 // structured by its syntax
 #[derive(Debug)]
@@ -323,7 +369,9 @@ pub struct SyntaxTree {
 
     // Abstract representation of all functions within
     // the program root
-    pub functions: Vec<Function>
+    pub functions: Vec<Function>,
+    pub declarations: Vec<FunctionDec>,
+    pub records: HashMap<String, DataRecord>,
 }
 
 impl SyntaxTree {
@@ -331,7 +379,9 @@ impl SyntaxTree {
     pub fn new() -> Self
     {
         Self {
-            functions: vec![]
+            functions: Vec::new(),
+            declarations: Vec::new(),
+            records: HashMap::new()
         }
     }
 
@@ -339,5 +389,15 @@ impl SyntaxTree {
     pub fn append(&mut self, f: Function)
     {
         self.functions.push(f);
+    }
+
+    pub fn append_dec(&mut self, f: FunctionDec)
+    {
+        self.declarations.push(f);
+    }
+
+    pub fn append_rec(&mut self, r: DataRecord)
+    {
+        self.records.insert(r.name.clone(), r);
     }
 }
