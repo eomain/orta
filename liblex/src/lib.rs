@@ -419,10 +419,12 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                         match c {
                             '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' =>
                                 return Err(Error::Custom("found a digit following `0`")),
-                            _ => ()
+                            '.' => number(&mut lexer),
+                            _ => 0.token()
                         }
+                    } else {
+                        0.token()
                     }
-                    0.token()
                 },
                 '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => {
                     number(&mut lexer)
@@ -578,11 +580,11 @@ mod tests {
     #[test]
     fn float()
     {
-        let input = "1.5+2.5".chars().collect();
+        let input = "0.5+2.5".chars().collect();
         let stream = scan(input).unwrap();
         let mut tokens = stream.iter();
 
-        assert_eq!(tokens.next(), Some(&Literal(libtoken::Literal::Float(1.5))));
+        assert_eq!(tokens.next(), Some(&Literal(libtoken::Literal::Float(0.5))));
         tokens.next();
         assert_eq!(tokens.next(), Some(&Literal(libtoken::Literal::Float(2.5))));
     }
