@@ -6,5 +6,4 @@ description = "defines the types used to construct an AST for a program"
 edition = "2018"
 
 [dependencies]
-libsym = { path = "../libsym" }
 libtoken = { path = "../libtoken" }

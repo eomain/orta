@@ -1,13 +1,13 @@
 
-extern crate libsym;
 extern crate libtoken;
 
+use std::fmt;
 use std::rc::Rc;
 use std::collections::HashMap;
 pub use libtoken::Literal;
 pub use libtoken::TokenStream;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum IntType {
     U8,
     U16,
@@ -17,6 +17,40 @@ pub enum IntType {
     S16,
     S32,
     S64
+}
+
+impl From<&IntType> for &str {
+    fn from(t: &IntType) -> Self
+    {
+        use IntType::*;
+        match t {
+            U8 => "u8",
+            U16 => "u16",
+            U32 => "u32",
+            U64 => "u64",
+            S8 => "i8",
+            S16 => "i16",
+            S32 => "i32",
+            S64 => "i64"
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum FloatType {
+    F32,
+    F64
+}
+
+impl From<&FloatType> for &str {
+    fn from(t: &FloatType) -> Self
+    {
+        use FloatType::*;
+        match t {
+            F32 => "f32",
+            F64 => "f64"
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,14 +88,33 @@ impl From<&DataRecord> for Tuple {
 // All natively supported data types
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
+    Unset,
     Unit,
     Integer(IntType),
+    Float(FloatType),
     Boolean,
+    String,
     Tuple(Tuple),
     Array(Box<DataType>),
     Record(Rc<DataRecord>),
     //Record(String),
-    Function(Tuple, Box<DataType>)
+    Function(Tuple, Box<DataType>),
+    Pointer(Rc<DataType>)
+}
+
+impl fmt::Display for DataType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "{}", match self {
+            DataType::Unset => "unset",
+            DataType::Unit => "unit",
+            DataType::Integer(i) => i.into(),
+            DataType::Float(f) => f.into(),
+            DataType::Boolean => "bool",
+            DataType::String => "string",
+            _ => unimplemented!()
+        })
+    }
 }
 
 impl DataType {
@@ -72,10 +125,30 @@ impl DataType {
     }
 }
 
+pub trait Typed {
+    fn get_type(&self) -> &DataType;
+}
+
 // A variable identifier
 #[derive(Debug, Clone, PartialEq)]
 pub struct Variable {
-    pub name: String
+    pub name: String,
+    pub dtype: DataType
+}
+
+impl Variable {
+    pub fn new(name: &str) -> Self
+    {
+        Self {
+            name: name.into(),
+            dtype: DataType::Unset
+        }
+    }
+
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
+    }
 }
 
 // A value that can be either a
@@ -84,8 +157,19 @@ pub struct Variable {
 pub enum Value {
     /// returns an empty value `()`
     Unit,
-    Literal(Literal),
-    Variable(String)
+    Literal(Literal, DataType),
+    Variable(Variable)
+}
+
+impl Typed for Value {
+    fn get_type(&self) -> &DataType
+    {
+        match self {
+            Value::Unit => unimplemented!(),
+            Value::Literal(_, t) => t,
+            Value::Variable(v) => v.get_type()
+        }
+    }
 }
 
 /// An expression that evaluates to a value
@@ -99,17 +183,29 @@ pub enum Expr {
     Call(CallExpr)
 }
 
+impl Typed for Expr {
+    fn get_type(&self) -> &DataType
+    {
+        match self {
+            Expr::Value(v) => v.get_type(),
+            _ => unimplemented!()
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Assign {
     pub id: String,
+    pub dtype: DataType,
     pub expr: Expr
 }
 
 impl Assign {
-    pub fn new(id: &str, expr: Expr) -> Self
+    pub fn new(id: &str, dtype: DataType, expr: Expr) -> Self
     {
         Self {
             id: id.into(),
+            dtype,
             expr
         }
     }
@@ -194,10 +290,23 @@ pub struct Return {
     pub expr: Option<Box<Expr>>
 }
 
+impl Return {
+    pub fn new(expr: Option<Expr>) -> Self
+    {
+        Self {
+            dtype: DataType::Unset,
+            expr: match expr {
+                None => None,
+                Some(e) => Some(Box::new(e))
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CallExpr {
     pub name: String,
-    //pub dtype: DataType,
+    pub rtype: DataType,
     pub args: ExprList
 }
 
@@ -206,7 +315,7 @@ impl CallExpr {
     {
         Self {
             name: name.into(),
-            //dtype,
+            rtype: DataType::Unset,
             args
         }
     }
