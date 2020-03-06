@@ -66,7 +66,7 @@ pub trait Output {
 mod tests {
 
     extern crate libast;
-    use libast::IntType;
+    use libast::IntType::*;
     use libast::DataType;
     use libast::ParamList;
     use libast::Function;
@@ -81,36 +81,40 @@ mod tests {
         let cg = CodeGen::LLVM;
         let w = &mut std::io::stdout();
         let mut unit = CodeUnit::new("test", w);
+        let dtype = DataType::Integer(U8);
         let bexpr = libast::Expr::Binary(
             BinaryExpr::Add(
                 Box::new(
                     libast::Expr::Value(
                         libast::Value::Literal(
-                            libast::Literal::Unsigned(1)
+                            libast::Literal::Unsigned(1),
+                            dtype.clone()
                         )
                     )
                 ),
                 Box::new(
                     libast::Expr::Value(
                         libast::Value::Literal(
-                            libast::Literal::Unsigned(1)
+                            libast::Literal::Unsigned(1),
+                            dtype.clone()
                         )
                     )
                 )
             )
         );
 
-        let rtype = DataType::Integer(IntType::U8);
+        let rtype = DataType::Integer(U8);
         let mut param = ParamList::new();
-        param.add("a", DataType::Integer(IntType::U8));
-        param.add("b", DataType::Integer(IntType::U8));
+        param.add("a", DataType::Integer(U8));
+        param.add("b", DataType::Integer(U8));
         let ret = libast::Expr::Return(
             libast::Return {
-                dtype: DataType::Integer(IntType::U8),
+                dtype: DataType::Integer(U8),
                 expr: Some(Box::new(
                         libast::Expr::Value(
                         libast::Value::Literal(
-                            libast::Literal::Unsigned(0)
+                            libast::Literal::Unsigned(0),
+                            dtype.clone()
                         )
                     )
                 )),

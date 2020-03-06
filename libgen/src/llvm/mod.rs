@@ -71,6 +71,38 @@ impl AsRef<str> for Register {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Local {
+    id: String
+}
+
+impl Local {
+    pub fn new(id: &str) -> Self
+    {
+        Self {
+            id: lid(&format!("v.{}", id))
+        }
+    }
+}
+
+impl From<&Local> for Register {
+    fn from(l: &Local) -> Register
+    {
+        Register {
+            id: l.id.clone()
+        }
+    }
+}
+
+#[test]
+fn local_test()
+{
+    let l = Local::new("a");
+    assert_eq!("%v.a", l.id);
+    let r = Register::from(&l);
+    assert_eq!("%v.a", r.id);
+}
+
 // global identifier
 #[inline]
 fn gid(name: &str) -> String
@@ -251,10 +283,13 @@ impl fmt::Display for Value {
 #[derive(Debug, Clone)]
 pub enum Operation {
     Add(Register, Value, Value),
+    Alloca(Rc<Register>, Option<u32>),
     Call(Option<Register>, GlobalId, Option<Vec<(Type, Value)>>),
     GetElPtr(Register, (Type, Rc<GlobalId>), Vec<(Type, Value)>),
+    Load(Register, Type, Rc<Register>),
     Mul(Register, Value, Value),
     Ret(Option<Value>),
+    Store(Value, Type, Rc<Register>),
     Sub(Register, Value, Value),
     Sdiv(Register, Value, Value),
     Srem(Register, Value, Value),
@@ -268,10 +303,13 @@ impl Operation {
         use Operation::*;
         match self {
             Add(_, _, _) => "add",
+            Alloca(_, _) => "alloca",
             Call(_, _, _) => "call",
             GetElPtr(_, _, _) => "getelementptr",
+            Load(_, _, _) => "load",
             Mul(_, _, _) => "mul",
             Ret(_) => "ret",
+            Store(_, _, _) => "store",
             Sub(_, _, _) => "sub",
             Sdiv(_, _, _) => "sdiv",
             Srem(_, _, _) => "srem",
@@ -295,6 +333,13 @@ impl Operation {
                 None => None,
                 Some(v) => Some(format!("{}", v))
             },
+            Alloca(_, s) => {
+                if let Some(i) = s {
+                    Some(format!(", i32 {}", i))
+                } else {
+                    None
+                }
+            },
             Call(_, g, args) => {
                 match args {
                     None => Some(format!("{}()", g.id)),
@@ -303,6 +348,12 @@ impl Operation {
                         Some(format!("{}({})", g.id, p))
                     }
                 }
+            },
+            Load(_, t, p) => {
+                Some(format!(", {}* {}", t, p.id))
+            },
+            Store(v, t, r) => {
+                Some(format!("{}, {}* {}", v, t, r.id))
             },
             GetElPtr(_, ptr, indexes) => {
                 let p = param_val(indexes);
@@ -323,6 +374,8 @@ impl Operation {
             Srem(r, _, _) |
             Udiv(r, _, _) |
             Urem(r, _, _) => Some(r.id.clone()),
+            Alloca(r, _) => Some(r.id.clone()),
+            Load(r, _, _) => Some(r.id.clone()),
             GetElPtr(r, _, _) => Some(r.id.clone()),
             _ => None
         }
@@ -356,7 +409,7 @@ impl From<Inst> for String {
             if let Some(args) = args {
                 format!("{} = {} {} {}", reg, name, t, args)
             } else {
-                unreachable!()
+                format!("{} = {} {}", reg, name, t)
             }
         } else {
             if let Some(args) = args {
@@ -368,7 +421,7 @@ impl From<Inst> for String {
     }
 }
 
-/*#[derive(Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Global {
     name: String,
     pub prop: Properties
@@ -382,9 +435,9 @@ impl Global {
             prop: Properties::default()
         }
     }
-}*/
+}
 
-/*impl From<Global> for GlobalValue {
+impl From<Global> for GlobalValue {
     fn from(g: Global) -> Self
     {
         GlobalValue::Global(g)
@@ -397,7 +450,7 @@ impl Output for Global {
     {
         writeln!(w, "{} {}", self.name, self.prop);
     }
-}*/
+}
 
 #[derive(Debug, Clone)]
 pub struct GlobalId {
@@ -593,7 +646,7 @@ impl Output for FunctionDec {
 #[derive(Debug, Clone)]
 enum GlobalValue {
     Constant(Constant),
-    //Global(Global),
+    Global(Global),
     Function(Function),
     FunctionDec(FunctionDec)
 }
@@ -605,7 +658,7 @@ impl Output for GlobalValue {
         use GlobalValue::*;
         match self {
             Constant(c) => c.output(w),
-            //Global(g) => g.output(w),
+            Global(g) => g.output(w),
             Function(f) => f.output(w),
             FunctionDec(d) => d.output(w)
         }
@@ -614,7 +667,7 @@ impl Output for GlobalValue {
 
 #[cfg(test)]
 mod tests {
-    use crate::llvm::*;
+    use super::*;
 
     #[test]
     fn module()
@@ -635,5 +688,21 @@ mod tests {
         let param = Some(vec![Type::Int(32)]);
         let dec = FunctionDec::new("exit", param, ret);
         dec.output(&mut std::io::stdout());
+    }
+
+    #[test]
+    fn var()
+    {
+        let r = Rc::new(Register::new("a"));
+        let t = Type::Int(32);
+        let insts = vec![
+            Inst::new(Operation::Alloca(r.clone(), None), t.clone()),
+            Inst::new(Operation::Store(Value::Int(100), t.clone(), r.clone()), t.clone()),
+            Inst::new(Operation::Load(Register::new("0"), t.clone(), r.clone()), t)
+        ];
+        for inst in &insts {
+            let s = String::from(inst.clone());
+            println!("{}", s);
+        }
     }
 }
