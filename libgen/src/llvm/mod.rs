@@ -218,6 +218,7 @@ impl fmt::Display for Type {
 
 #[derive(Debug, Clone)]
 pub enum Value {
+    Void,
     Int(isize),
     Uint(usize),
     Reg(Register),
@@ -230,6 +231,7 @@ impl From<Value> for String
     {
         use Value::*;
         match v {
+            Void => "".into(),
             Int(i) => format!("{}", i),
             Uint(u) => format!("{}", u),
             Reg(r) => r.id,
@@ -366,7 +368,7 @@ impl From<Inst> for String {
     }
 }
 
-#[derive(Debug, Clone)]
+/*#[derive(Debug, Clone)]
 pub struct Global {
     name: String,
     pub prop: Properties
@@ -380,9 +382,9 @@ impl Global {
             prop: Properties::default()
         }
     }
-}
+}*/
 
-impl From<Global> for GlobalValue {
+/*impl From<Global> for GlobalValue {
     fn from(g: Global) -> Self
     {
         GlobalValue::Global(g)
@@ -395,7 +397,7 @@ impl Output for Global {
     {
         writeln!(w, "{} {}", self.name, self.prop);
     }
-}
+}*/
 
 #[derive(Debug, Clone)]
 pub struct GlobalId {
@@ -591,7 +593,7 @@ impl Output for FunctionDec {
 #[derive(Debug, Clone)]
 enum GlobalValue {
     Constant(Constant),
-    Global(Global),
+    //Global(Global),
     Function(Function),
     FunctionDec(FunctionDec)
 }
@@ -603,7 +605,7 @@ impl Output for GlobalValue {
         use GlobalValue::*;
         match self {
             Constant(c) => c.output(w),
-            Global(g) => g.output(w),
+            //Global(g) => g.output(w),
             Function(f) => f.output(w),
             FunctionDec(d) => d.output(w)
         }
