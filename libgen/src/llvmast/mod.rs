@@ -295,6 +295,21 @@ fn expr(c: &mut Context, e: &ast::Expr, v: &mut Vec<Inst>) -> Option<Vec<(Type, 
     }
 }
 
+fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
+{
+    let l = Local::new(&a.id);
+    let t = type_cast(&a.dtype);
+
+    if let Some(expr) = expr(c, &a.expr, v) {
+        let (t, val) = &expr[0];
+        let r = Rc::new(Register::from(&l));
+        let alloc = Operation::Alloca(r.clone(), None);
+        let store = Operation::Store(val.clone(), t.clone(), r);
+        v.push(Inst::new(alloc, t.clone()));
+        v.push(Inst::new(store, t.clone()));
+    }
+}
+
 // Convert an AST function into an LLVM function
 fn function(c: &mut Context, func: &ast::Function) -> Function
 {
