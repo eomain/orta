@@ -2,15 +2,18 @@
 use crate::arithmetic::precedence;
 use crate::ParseInfo;
 use super::*;
+use libtoken::Token;
+use libtoken::Operator;
+use libtoken::ArithmeticOperator as AOp;
+use libtoken::LogicalOperator as LOp;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
 use libast::Expr;
 use libast::BoolExpr;
 use libast::BinaryExpr;
-use libtoken::Token;
-use libtoken::Operator;
-use libtoken::ArithmeticOperator;
+use libast::LogicalExpr;
+use libast::CompExpr;
 
 pub fn bexpr(info: &mut ParseInfo) -> PResult<BoolExpr>
 {
@@ -29,142 +32,67 @@ pub fn bexpr(info: &mut ParseInfo) -> PResult<BoolExpr>
     }
 }
 
-fn literal(literal: &Literal) -> Value
+pub fn bin(info: &mut ParseInfo, e: Expr, op: AOp) -> PResult<BinaryExpr>
 {
-    Value::Literal(literal.clone())
-}
-
-fn variable(id: &str) -> Value
-{
-    Value::Variable(id.into())
-}
-
-fn value(token: &Token) -> Option<Value>
-{
-    Some(match token {
-        Token::Literal(l) => literal(l),
-        Token::Symbol(s) => variable(s),
-        _ => return None
-    })
-}
-
-fn check_operator(token: &Token) -> Option<ArithmeticOperator>
-{
-    if let Token::Operator(operator) = token {
-        if let Operator::Arithmetic(operator) = operator {
-            return Some(operator.clone());
-        }
-    }
-    None
-}
-
-#[inline]
-fn into_binary_expr(op: ArithmeticOperator, e1: Expr, e2: Expr) -> BinaryExpr
-{
-    let e1 = Box::new(e1);
-    let e2 = Box::new(e2);
-
-    match op {
+    let e2 = Box::new(expr(info)?);
+    let e1 = Box::new(e);
+    use AOp::*;
+    Ok(match op {
         Add => BinaryExpr::Add(e1, e2),
         Sub => BinaryExpr::Sub(e1, e2),
         Mul => BinaryExpr::Mul(e1, e2),
         Div => BinaryExpr::Div(e1, e2),
         Mod => BinaryExpr::Mod(e1, e2)
-    }
+    })
 }
 
-fn binary_expr(info: &mut ParseInfo, mut op: ArithmeticOperator,
-               mut e1: Expr) -> Option<BinaryExpr>
+pub fn cmp(info: &mut ParseInfo, e: Expr, op: LOp) -> PResult<CompExpr>
 {
-    use ArithmeticOperator::*;
-
-    let mut e2;
-    let token = info.next()?;
-    let ahead = info.look()?;
-    let operator = check_operator(ahead);
-
-    if let Some(op2) = operator {
-        let nexpr = expr(info)?;
-        if precedence(op, op2) {
-            let bexpr = into_binary_expr(op, e1, nexpr);
-            e1 = Expr::Binary(bexpr);
-            op = op2;
-            info.next();
-            e2 = expr(info)?;
-        } else {
-            let bin = binary_expr(info, op2, nexpr)?;
-            e2 = Expr::Binary(bin);
-        }
-    } else {
-        e2 = expr(info)?;
-    }
-
-    /*let e2 = match check_operator(token) {
-        None => match expr(info) {
-            None => return None,
-            Some(e) => Box::new(e)
-        },
-
-        Some(op2) => {
-            if precedence(op, op2) {
-                let e1 = Box::new(e);
-                let e = Expr::BinaryExpr(
-                    match op {
-                        Add => BinaryExpr::Add(e1, e2),
-                        Sub => BinaryExpr::Sub(e1, e2),
-                        Mul => BinaryExpr::Mul(e1, e2),
-                        Div => BinaryExpr::Div(e1, e2),
-                        Mod => BinaryExpr::Mod(e1, e2)
-                    }
-                );
-            } else {
-                expr(info)
-            }
-        }
-    };
-
-    let e2 = match expr(info) {
-        None => return None,
-        Some(e) => Box::new(e)
-    };*/
-
-    Some(into_binary_expr(op, e1, e2))
+    let e2 = Box::new(expr(info)?);
+    let e1 = Box::new(e);
+    use LOp::*;
+    Ok(match op {
+        Eq => CompExpr::Eq(e1, e2),
+        Ne => CompExpr::Ne(e1, e2),
+        Gt => CompExpr::Gt(e1, e2),
+        Lt => CompExpr::Lt(e1, e2),
+        Ge => CompExpr::Ge(e1, e2),
+        Le => CompExpr::Le(e1, e2)
+    })
 }
 
-fn expr(info: &mut ParseInfo) -> Option<Expr>
-{
-    let e = Expr::Value(match value(info.next()?) {
-        None => return None,
-        Some(v) => v
-    });
+#[cfg(test)]
+mod tests {
+    extern crate liblex;
 
-    let operator = match info.look() {
-        None => return Some(e),
-        Some(o) => match check_operator(o) {
-            None => return Some(e),
-            Some(o) => o
-        }
-    };
+    use super::*;
+    use crate::ParseInfo;
+    use libtoken::Token;
+    use libtoken::Key;
+    use libast::DataType::*;
+    use libast::IntType::*;
 
-    if let Some(binary) = binary_expr(info, operator, e) {
-        return Some(Expr::Binary(binary));
+    #[test]
+    fn bin_test()
+    {
+        extern crate liblex;
+
+        let tokens = liblex::scan(r#"1 * 2 + 3"#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let expr = expr(&mut info).unwrap();
+        println!("{:?}", expr);
     }
 
-    None
-}
+    #[test]
+    fn cmp_test()
+    {
+        extern crate liblex;
 
-#[test]
-fn expr_test()
-{
-    use libtoken::TokenStream;
-    use libtoken::IntoToken;
-    use libtoken::ArithmeticOperator::*;
+        let tokens = liblex::scan(r#"1 == 1"#.chars().collect()).unwrap();
 
-    let tokens: TokenStream = vec![
-        2.token(), Mul.token(), 3.token(), Add.token(), 4.token()
-    ];
-
-    let mut parse = ParseInfo::new(tokens);
-
-    println!("{:?}", expr(&mut parse));
+        let mut info = ParseInfo::new(tokens);
+        let expr = expr(&mut info).unwrap();
+        println!("{:?}", expr);
+    }
 }

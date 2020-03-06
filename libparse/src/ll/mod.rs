@@ -13,13 +13,13 @@ use libtoken::Token;
 use libtoken::Key;
 use libtoken::Prim;
 use libtoken::Operator;
-use libtoken::ArithmeticOperator;
+use libtoken::ArithmeticOperator as AOp;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
 use libast::Assign;
 use libast::{ Expr, ExprList };
-use libast::{ BinaryExpr, CallExpr };
+use libast::{ BinaryExpr, CallExpr, Return };
 use libast::DataType;
 use libast::IntType;
 use libast::ParamList;
@@ -74,8 +74,8 @@ fn value(info: &mut ParseInfo) -> PResult<Value>
     let token = info.next()
                     .ok_or(Error::from(msg))?;
     match token {
-        Token::Literal(l) => Ok(Value::Literal(l.clone())),
-        Token::Symbol(s) => Ok(Value::Variable(s.clone())),
+        Token::Literal(l) => Ok(Value::Literal(l.clone(), DataType::Unset)),
+        Token::Symbol(s) => Ok(Value::Variable(Variable::new(s))),
         _ => Err(Error::from(msg))
     }
 }
@@ -84,9 +84,14 @@ fn assign_let(info: &mut ParseInfo) -> PResult<Assign>
 {
     token!(Token::Keyword(Key::Let), info.next())?;
     let id = id(info)?;
+    let dtype = if token_is!(Token::Semi, info) {
+        types(info)?
+    } else {
+        DataType::Unset
+    };
     token!(Token::Assign, info.next())?;
     let expr = expr(info)?;
-    Ok(Assign::new(&id, expr))
+    Ok(Assign::new(&id, dtype, expr))
 }
 
 #[test]
@@ -127,12 +132,49 @@ fn assign_call_test()
     assert_eq!(call.args[0], Expr::Value(Value::Literal(Literal::String("input".into()))));
 }
 
+fn ret(info: &mut ParseInfo) -> PResult<Return>
+{
+    token!(Token::Keyword(Key::Return), info.next())?;
+    let expr = if !token_is!(Token::Semi, info) {
+        Some(expr(info)?)
+    } else {
+        None
+    };
+    Ok(Return::new(expr))
+}
+
+#[test]
+fn ret_test()
+{
+    extern crate liblex;
+
+    let tokens = liblex::scan(r#"return true"#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let ret = ret(&mut info).unwrap();
+
+    println!("{:?}", ret);
+}
+
+#[inline]
+fn aop(info: &mut ParseInfo) -> Option<AOp>
+{
+    if let Some(token) = info.look() {
+        if let Token::Operator(op) = token {
+            if let Operator::Arithmetic(op) = op {
+                return Some(*op);
+            }
+        }
+    }
+    None
+}
+
 fn expr(info: &mut ParseInfo) -> PResult<Expr>
 {
     let msg = "expected expression";
     let token = info.look()
                     .ok_or(Error::from(msg))?;
-    match token {
+    let e = match token {
         Token::Symbol(_) => {
             if Some(&Token::Lparen) == info.peek() {
                 Ok(Expr::Call(call(info)?))
@@ -146,11 +188,21 @@ fn expr(info: &mut ParseInfo) -> PResult<Expr>
         Token::Keyword(k) => {
             match k {
                 Key::If => Ok(Expr::If(branch::conditional(info)?)),
+                Key::True => Ok(Expr::Value(Value::Literal(Literal::Boolean(true), DataType::Unset))),
+                Key::False => Ok(Expr::Value(Value::Literal(Literal::Boolean(false), DataType::Unset))),
+                Key::Return => Ok(Expr::Return(ret(info)?)),
                 _ => Err(Error::from(msg))
             }
         },
         _ => Err(Error::from(msg))
+    }?;
+
+    if let Some(op) = aop(info) {
+        info.next();
+        return Ok(Expr::Binary(expr::bin(info, e, op)?));
     }
+
+    Ok(e)
 }
 
 fn expr_list(info: &mut ParseInfo, until: &Token, sep: Token) -> PResult<ExprList>
