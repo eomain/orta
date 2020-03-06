@@ -11,6 +11,8 @@ use libtoken::TryIntoToken;
 use libtoken::Key;
 use libtoken::Prim;
 use libtoken::ArithmeticOperator;
+use libtoken::LogicalOperator as LOp;
+use libtoken::UnaryOperator as UOp;
 
 // The type returned if there is an error
 // found while lexing.
@@ -222,7 +224,7 @@ static KEYWORDS: [(&str, Key); 13] = [
     ("break", Key::Break)
 ];
 
-static KEYWORDS_PRIM: [(&str, Prim); 11] = [
+static KEYWORDS_PRIM: [(&str, Prim); 15] = [
     ("u8", Prim::U8),
     ("u16", Prim::U16),
     ("u32", Prim::U32),
@@ -233,7 +235,11 @@ static KEYWORDS_PRIM: [(&str, Prim); 11] = [
     ("i32", Prim::S32),
     ("i64", Prim::S64),
     ("int", Prim::S64),
-    ("bool", Prim::Bool)
+    ("f32", Prim::F32),
+    ("f64", Prim::F64),
+    ("bool", Prim::Bool),
+    ("char", Prim::Char),
+    ("string", Prim::String)
 ];
 
 #[test]
@@ -323,11 +329,11 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
 
     match c {
         '+' => {
-            if lexer.check('+') {
+            /*if lexer.check('+') {
                 unimplemented!()
             } else if lexer.check('=') {
                 unimplemented!()
-            } else {
+            } else*/ {
                 Add.token()
             }
         },
@@ -335,6 +341,34 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
         '*' => Mul.token(),
         '/' => Div.token(),
         '%' => Mod.token(),
+        '=' => {
+            if lexer.check('=') {
+                LOp::Eq.token()
+            } else {
+                Token::Assign
+            }
+        },
+        '!' => {
+            if lexer.check('=') {
+                LOp::Ne.token()
+            } else {
+                UOp::Not.token()
+            }
+        },
+        '>' => {
+            if lexer.check('=') {
+                LOp::Ge.token()
+            } else {
+                LOp::Gt.token()
+            }
+        },
+        '<' => {
+            if lexer.check('=') {
+                LOp::Le.token()
+            } else {
+                LOp::Lt.token()
+            }
+        },
         _ => unreachable!()
     }
 }
@@ -377,8 +411,7 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 ':' => Token::Colon,
                 ';' => Token::Semi,
                 ',' => Token::Comma,
-                '=' => Token::Assign,
-                '+' | '-' | '*' | '/' | '%' => {
+                '=' | '!' | '>' | '<' | '+' | '-' | '*' | '/' | '%' => {
                     operator(&mut lexer, c)
                 },
                 '0' => {
