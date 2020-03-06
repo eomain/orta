@@ -262,6 +262,7 @@ pub enum Value {
     Int(isize),
     Uint(usize),
     Reg(Register),
+    Local(Local),
     Global(Rc<GlobalId>)
 }
 
@@ -274,6 +275,7 @@ impl From<Value> for String
             Void => "".into(),
             Int(i) => format!("{}", i),
             Uint(u) => format!("{}", u),
+            Local(l) => l.id,
             Reg(r) => r.id,
             Global(g) => g.id.clone()
         }

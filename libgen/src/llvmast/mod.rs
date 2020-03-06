@@ -120,6 +120,18 @@ fn literal(c: &mut Context, l: &ast::Literal,
     }
 }
 
+fn variable(c: &mut Context, var: &ast::Variable, v: &mut Vec<Inst>) -> (Type, Value)
+{
+    let l = Local::new(&var.name);
+    let t = type_cast(&var.dtype);
+
+    let reg = c.id.register();
+    let op = Operation::Load(reg.clone(), t.clone(), Rc::new(Register::from(&l)));
+    v.push(Inst::new(op, t.clone()));
+
+    (t, Value::Reg(reg))
+}
+
 // Convert an AST value into a LLVM value
 fn value(c: &mut Context, val: &ast::Value, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
@@ -127,7 +139,7 @@ fn value(c: &mut Context, val: &ast::Value, v: &mut Vec<Inst>) -> Option<Vec<(Ty
     Some(vec![match val {
         Unit => unimplemented!(),
         Literal(l, t) => literal(c, l, &t, v),
-        Variable(_) => unimplemented!()
+        Variable(var) => variable(c, var, v)
     }])
 }
 
