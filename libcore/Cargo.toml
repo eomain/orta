@@ -10,4 +10,5 @@ libtoken = { path = "../libtoken" }
 libast = { path = "../libast" }
 liblex = { path = "../liblex" }
 libparse = { path = "../libparse" }
+libtype = { path = "../libtype" }
 libgen = { path = "../libgen" }

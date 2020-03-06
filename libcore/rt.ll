@@ -16,10 +16,10 @@ define void @print(i8* %s) {
     ret void
 }
 
-@.ifmt = constant [4 x i8] c"%ld\00"
+@.ifmt = constant [5 x i8] c"%ld\0A\00"
 
 define void @iprint(i64 %i) {
-    %1 = getelementptr [4 x i8], [4 x i8]* @.ifmt, i32 0, i32 0
+    %1 = getelementptr [5 x i8], [5 x i8]* @.ifmt, i32 0, i32 0
     call i32 (i8*, ...) @printf(i8* %1, i64 %i)
     ret void
 }

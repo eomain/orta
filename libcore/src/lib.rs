@@ -2,6 +2,7 @@
 extern crate libtoken;
 extern crate liblex;
 extern crate libparse;
+extern crate libtype;
 extern crate libgen;
 
 mod pipe;
@@ -63,6 +64,7 @@ pub enum Error {
     Input,
     Scan,
     Parse,
+    Type,
     CodeGen,
     Write
 }
@@ -116,6 +118,17 @@ fn parse(tokens: TokenStream) -> Result<SyntaxTree, Error>
     match libparse::construct(tokens) {
         Err(_) => Err(Error::Parse),
         Ok(ast) => Ok(ast)
+    }
+}
+
+fn type_check(ast: &mut SyntaxTree) -> Result<(), Error>
+{
+    match libtype::init(ast) {
+        Err(e) => {
+            eprintln!("error: {}", e);
+            Err(Error::Type)
+        },
+        Ok(_) => Ok(())
     }
 }
 
@@ -307,7 +320,8 @@ impl BuildCommand {
     {
         let input = input(&mut self.input)?;
         let tokens = scan(&input)?;
-        let ast = parse(tokens)?;
+        let mut ast = parse(tokens)?;
+        type_check(&mut ast)?;
 
         let cg = self.codegen();
         let mut ir = codegen(&ast, cg, "");
