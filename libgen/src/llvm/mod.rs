@@ -211,7 +211,7 @@ pub enum Type {
     Double,
     Array(usize, Box<Type>),
     Pointer(Box<Type>),
-    Types(Rc<Register>, Vec<Type>)
+    Types(Rc<GlobalId>, Vec<Type>)
 }
 
 impl From<Type> for String {
@@ -246,6 +246,14 @@ impl fmt::Display for Type {
         let s: String = self.clone().into();
         write!(f, "{}", s)
     }
+}
+
+#[test]
+fn types()
+{
+    let gid = Rc::new(GlobalId::new("data"));
+    let t = Type::Types(gid, vec![Type::Int(32), Type::Int(8)]);
+    println!("{}", t);
 }
 
 #[derive(Debug, Clone)]
@@ -452,7 +460,7 @@ impl Output for Global {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GlobalId {
     id: String
 }

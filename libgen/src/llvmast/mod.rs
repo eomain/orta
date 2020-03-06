@@ -76,7 +76,7 @@ fn types_cast(d: &ast::DataRecord) -> Type
     for attr in &d.attr {
         v.push(type_cast(&attr.1));
     }
-    Type::Types(Rc::new(Register::new(name)), v)
+    Type::Types(Rc::new(GlobalId::new(name)), v)
 }
 
 fn constant(c: &mut Context, l: &ast::Literal) -> (Constant, Rc<GlobalId>)
