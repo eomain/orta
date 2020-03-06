@@ -6,3 +6,4 @@ description = "library used to store symbol table definitions"
 edition = "2018"
 
 [dependencies]
+libast = { path = "../libast" }
