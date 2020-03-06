@@ -64,7 +64,9 @@ pub enum Prim {
     S64,
     SInt,
     F32,
-    F64
+    F64,
+    Char,
+    String
 }
 
 impl IntoToken for Prim {
@@ -96,12 +98,28 @@ pub enum UnaryOperator {
     Sub
 }
 
+impl IntoToken for UnaryOperator {
+    fn token(&self) -> Token
+    {
+        Token::Operator(Operator::Unary(self.clone()))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogicalOperator {
     Eq, // equal
     Ne, // not equal
     Gt, // greater than
-    Lt // less than
+    Lt, // less than
+    Ge, // greater than or equal,
+    Le  // less than or equal
+}
+
+impl IntoToken for LogicalOperator {
+    fn token(&self) -> Token
+    {
+        Token::Operator(Operator::Logical(self.clone()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
