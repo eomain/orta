@@ -51,7 +51,7 @@ impl TypeInfo {
 }
 
 // A map of names to type info
-pub type Entry = HashMap<Id, TypeInfo>;
+pub type Entry = HashMap<Id, (TypeInfo, bool)>;
 
 // Represents a single scope within a program
 #[derive(Debug, Clone, PartialEq)]
@@ -72,12 +72,17 @@ impl<'a> Scope<'a> {
         }
     }
 
-    pub fn insert(&mut self, id: &str, t: TypeInfo)
+    pub fn insert(&mut self, id: &str, t: (TypeInfo, bool))
     {
         self.entry.insert(id.into(), t);
     }
 
-    pub fn find(&self, id: &str) -> Option<&TypeInfo>
+    pub fn insert_var(&mut self, id: &str, v: DataType, f: bool)
+    {
+        self.entry.insert(id.into(), (TypeInfo::Var(v), f));
+    }
+
+    pub fn find(&self, id: &str) -> Option<&(TypeInfo, bool)>
     {
         match self.entry.get(id) {
             None => {
@@ -87,7 +92,49 @@ impl<'a> Scope<'a> {
                     None
                 }
             },
-            Some(t) => Some(t)
+            Some(t) => Some(&t)
+        }
+    }
+
+    pub fn find_var(&self, id: &str) -> Result<(DataType, bool), Error>
+    {
+        match self.find(id) {
+            None => Err(Error::Undefined(id.into())),
+            Some(t) => {
+                if let TypeInfo::Var(dt) = &t.0 {
+                    Ok((dt.clone(), t.1))
+                } else {
+                    Err(Error::NotVariable(id.into()))
+                }
+            }
+        }
+    }
+
+    pub fn find_var_type(&self, id: &str) -> Result<&DataType, Error>
+    {
+        match self.find(id) {
+            None => Err(Error::Undefined(id.into())),
+            Some((t, _)) => {
+                if let TypeInfo::Var(t) = t {
+                    Ok(&t)
+                } else {
+                    Err(Error::NotVariable(id.into()))
+                }
+            }
+        }
+    }
+
+    pub fn find_fun_type(&self, id: &str) -> Result<&Signature, Error>
+    {
+        match self.find(id) {
+            None => Err(Error::Undefined(id.into())),
+            Some((t, _)) => {
+                if let TypeInfo::Function(t) = t {
+                    Ok(&t)
+                } else {
+                    Err(Error::NotFunction(id.into()))
+                }
+            }
         }
     }
 
@@ -111,15 +158,15 @@ mod librt {
 
     pub fn insert(mut s: Scope) -> Scope
     {
-        s.insert("print", TypeInfo::Function(
+        s.insert("print", (TypeInfo::Function(
             (vec![DataType::String], DataType::Unit)
-        ));
-        s.insert("iprint", TypeInfo::Function(
+        ), true));
+        s.insert("iprint", (TypeInfo::Function(
             (vec![DataType::Integer(S64)], DataType::Unit)
-        ));
-        s.insert("exit", TypeInfo::Function(
+        ), true));
+        s.insert("exit", (TypeInfo::Function(
             (vec![DataType::Integer(S32)], DataType::Unit)
-        ));
+        ), true));
         s
     }
 }
@@ -142,7 +189,7 @@ impl<'a> Table<'a> {
         }
     }
 
-    pub fn insert(&mut self, id: &str, t: TypeInfo)
+    pub fn insert(&mut self, id: &str, t: (TypeInfo, bool))
     {
         self.global.insert(id, t);
     }
@@ -154,10 +201,8 @@ impl<'a> Table<'a> {
 
     pub fn has_main(&self) -> bool
     {
-        if let Some(sym) = self.global.find("main") {
-            if let TypeInfo::Function(_) = sym {
-                return true;
-            }
+        if let Ok(_) = self.global.find_fun_type("main") {
+            return true;
         }
         false
     }
