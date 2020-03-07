@@ -76,6 +76,11 @@ fn value(info: &mut ParseInfo) -> PResult<Value>
     match token {
         Token::Literal(l) => Ok(Value::Literal(l.clone(), DataType::Unset)),
         Token::Symbol(s) => Ok(Value::Variable(Variable::new(s))),
+        Token::Keyword(k) => match k {
+            Key::True => Ok(Value::Literal(Literal::Boolean(true), DataType::Unset)),
+            Key::False => Ok(Value::Literal(Literal::Boolean(false), DataType::Unset)),
+            _ => Err(Error::from(msg))
+        },
         _ => Err(Error::from(msg))
     }
 }
@@ -84,7 +89,7 @@ fn assign_let(info: &mut ParseInfo) -> PResult<Assign>
 {
     token!(Token::Keyword(Key::Let), info.next())?;
     let id = id(info)?;
-    let dtype = if token_is!(Token::Semi, info) {
+    let dtype = if token_is!(Token::Colon, info) {
         types(info)?
     } else {
         DataType::Unset
@@ -105,7 +110,8 @@ fn assign_let_test()
     let assign = assign_let(&mut info).unwrap();
 
     assert_eq!(assign.id, String::from("x"));
-    assert_eq!(assign.expr, Expr::Value(Value::Literal(Literal::String("test".into()))));
+    let val = Value::Literal(Literal::String("test".into()), DataType::Unset);
+    assert_eq!(assign.expr, Expr::Value(val));
 }
 
 // A function call expression of the form `<id>(<expr>, <expr>, ...)`
@@ -129,16 +135,16 @@ fn assign_call_test()
     let call = call(&mut info).unwrap();
 
     assert_eq!(call.name, String::from("main"));
-    assert_eq!(call.args[0], Expr::Value(Value::Literal(Literal::String("input".into()))));
+    let val = Value::Literal(Literal::String("input".into()), DataType::Unset);
+    assert_eq!(call.args[0], Expr::Value(val));
 }
 
 fn ret(info: &mut ParseInfo) -> PResult<Return>
 {
     token!(Token::Keyword(Key::Return), info.next())?;
-    let expr = if !token_is!(Token::Semi, info) {
-        Some(expr(info)?)
-    } else {
-        None
+    let expr = match info.look() {
+        Some(&Token::Semi) | None => None,
+        _ => Some(expr(info)?)
     };
     Ok(Return::new(expr))
 }
@@ -148,11 +154,25 @@ fn ret_test()
 {
     extern crate liblex;
 
+    let tokens = liblex::scan(r#"return"#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let ret = ret(&mut info).unwrap();
+    assert_eq!(ret.expr, None);
+    println!("{:?}", ret);
+}
+
+#[test]
+fn ret_expr_test()
+{
+    extern crate liblex;
+
     let tokens = liblex::scan(r#"return true"#.chars().collect()).unwrap();
 
     let mut info = ParseInfo::new(tokens);
     let ret = ret(&mut info).unwrap();
-
+    let val = Value::Literal(Literal::Boolean(true), DataType::Unset);
+    assert_eq!(ret.expr, Some(Box::new(Expr::Value(val))));
     println!("{:?}", ret);
 }
 
@@ -188,9 +208,9 @@ fn expr(info: &mut ParseInfo) -> PResult<Expr>
         Token::Keyword(k) => {
             match k {
                 Key::If => Ok(Expr::If(branch::conditional(info)?)),
-                Key::True => Ok(Expr::Value(Value::Literal(Literal::Boolean(true), DataType::Unset))),
-                Key::False => Ok(Expr::Value(Value::Literal(Literal::Boolean(false), DataType::Unset))),
+                Key::True | Key::False => Ok(Expr::Value(value(info)?)),
                 Key::Return => Ok(Expr::Return(ret(info)?)),
+                Key::Let => Ok(Expr::Assign(Box::new(assign_let(info)?))),
                 _ => Err(Error::from(msg))
             }
         },
