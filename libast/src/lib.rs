@@ -180,6 +180,7 @@ pub enum Expr {
     Logical(LogicalExpr),
     If(IfExpr),
     Return(Return),
+    Assign(Box<Assign>),
     Call(CallExpr)
 }
 
@@ -188,6 +189,9 @@ impl Typed for Expr {
     {
         match self {
             Expr::Value(v) => v.get_type(),
+            Expr::Binary(b) => b.get_type(),
+            Expr::Return(r) => r.get_type(),
+            Expr::Call(c) => c.get_type(),
             _ => unimplemented!()
         }
     }
@@ -224,6 +228,20 @@ pub enum BinaryExpr {
     Mul(Box<Expr>, Box<Expr>),
     Div(Box<Expr>, Box<Expr>),
     Mod(Box<Expr>, Box<Expr>)
+}
+
+impl Typed for BinaryExpr {
+    fn get_type(&self) -> &DataType
+    {
+        use BinaryExpr::*;
+        match self {
+            Add(a, _) |
+            Sub(a, _) |
+            Mul(a, _) |
+            Div(a, _) |
+            Mod(a, _) => a.get_type()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -303,6 +321,13 @@ impl Return {
     }
 }
 
+impl Typed for Return {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CallExpr {
     pub name: String,
@@ -318,6 +343,13 @@ impl CallExpr {
             rtype: DataType::Unset,
             args
         }
+    }
+}
+
+impl Typed for CallExpr {
+    fn get_type(&self) -> &DataType
+    {
+        &self.rtype
     }
 }
 
