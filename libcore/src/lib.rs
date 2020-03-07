@@ -116,7 +116,10 @@ fn scan(s: &String) -> Result<TokenStream, Error>
 fn parse(tokens: TokenStream) -> Result<SyntaxTree, Error>
 {
     match libparse::construct(tokens) {
-        Err(_) => Err(Error::Parse),
+        Err(e) => {
+            eprintln!("error: ");
+            Err(Error::Parse)
+        },
         Ok(ast) => Ok(ast)
     }
 }
