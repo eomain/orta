@@ -1,11 +1,35 @@
 
 use std::rc::Rc;
+use std::collections::HashMap;
 use super::llvm::*;
 use super::libast as ast;
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum VarType {
+    Val,
+    Ref
+}
+
+impl From<&Type> for VarType {
+    fn from(t: &Type) -> Self
+    {
+        use VarType::*;
+        match t {
+            /*Type::Void => unreachable!(),
+            Type::Int(_) |
+            Type::Uint(_) |
+            Type::Float |
+            Type::Double |*/
+            Type::Pointer(_) => Ref,
+            _ => Val
+        }
+    }
+}
+
 struct Id {
     lindex: usize,
-    gindex: usize
+    gindex: usize,
+    locals: HashMap<String, VarType>
 }
 
 impl Id {
@@ -13,8 +37,19 @@ impl Id {
     {
         Self {
             lindex: 1,
-            gindex: 1
+            gindex: 1,
+            locals: HashMap::new()
         }
+    }
+
+    fn insert(&mut self, id: &str, v: VarType)
+    {
+        self.locals.insert(id.into(), v);
+    }
+
+    fn get(&mut self, id: &str) -> Option<&VarType>
+    {
+        self.locals.get(id)
     }
 
     fn register(&mut self) -> Register
@@ -116,6 +151,7 @@ fn literal(c: &mut Context, l: &ast::Literal,
             let t = Type::Pointer(Box::new(Type::Int(8)));
             (t, Value::Reg(id))
         },
+        Boolean(b) => (type_cast(t), if *b { Value::Int(1) } else { Value::Int(0) }),
         _ => unimplemented!()
     }
 }
@@ -125,11 +161,22 @@ fn variable(c: &mut Context, var: &ast::Variable, v: &mut Vec<Inst>) -> (Type, V
     let l = Local::new(&var.name);
     let t = type_cast(&var.dtype);
 
-    let reg = c.id.register();
-    let op = Operation::Load(reg.clone(), t.clone(), Rc::new(Register::from(&l)));
-    v.push(Inst::new(op, t.clone()));
-
-    (t, Value::Reg(reg))
+    if let Some(vt) = c.id.get(l.as_ref()) {
+        match vt {
+            VarType::Ref => {
+                let reg = c.id.register();
+                let rc = Rc::new(Register::from(&l));
+                let op = Operation::Load(reg.clone(), t.clone(), rc);
+                v.push(Inst::new(op, t.clone()));
+                (t, Value::Reg(reg))
+            },
+            VarType::Val => {
+                (t, Value::Reg(Register::from(&Local::new(&var.name))))
+            }
+        }
+    } else {
+        unreachable!()
+    }
 }
 
 // Convert an AST value into a LLVM value
@@ -142,17 +189,6 @@ fn value(c: &mut Context, val: &ast::Value, v: &mut Vec<Inst>) -> Option<Vec<(Ty
         Variable(var) => variable(c, var, v)
     }])
 }
-
-// TODO:
-/*fn value_to_type(v: &Value) -> Type
-{
-    match v {
-        Value::Int(i) => Type::Int(64),
-        Value::Uint(u) => Type::Uint(64),
-        Value::Global(g) => Type::Pointer(Box::new(Type::Int(8))),
-        _ => unimplemented!()
-    }
-}*/
 
 #[test]
 fn constant_test()
@@ -235,29 +271,23 @@ fn bin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> Option<Vec<(T
 
 fn ret(c: &mut Context, r: &ast::Return, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
-    use ast::Expr;
     let value = match &r.expr {
         None => return None,
-        Some(e) => Some(match &**e {
-            Expr::Value(e) => value(c, e, v).unwrap()[0].1.clone(),
-            _ => unimplemented!()
+        Some(e) => Some({
+            expr(c, e, v).unwrap()[0].1.clone()
         })
     };
+
     let t = type_cast(&r.dtype);
     let op = Operation::Ret(value);
     v.push(Inst::new(op, t.clone()));
-    Some(vec![(t, Value::Void)])
+    None
 }
 
 fn call(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
     let id = GlobalId::new(&e.name);
     let rtype = type_cast(&e.rtype);
-    let reg: Option<Register> = if rtype == Type::Void {
-        None
-    } else {
-        Some(c.id.register())
-    };
 
     let mut args = if e.args.len() > 0 {
         let mut exprs = Vec::new();
@@ -272,6 +302,11 @@ fn call(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Option<Vec<(Ty
         None
     };
 
+    let reg: Option<Register> = if rtype == Type::Void {
+        None
+    } else {
+        Some(c.id.register())
+    };
 
     let op = Operation::Call(reg.clone(), id, args);
     v.push(Inst::new(op, rtype.clone()));
@@ -290,6 +325,7 @@ fn expr(c: &mut Context, e: &ast::Expr, v: &mut Vec<Inst>) -> Option<Vec<(Type, 
         Value(e) => value(c, e, v),
         Binary(b) => bin(c, b, v),
         Return(r) => ret(c, r, v),
+        Assign(a) => { assign(c, a, v); None },
         Call(e) => call(c, e, v),
         _ => unimplemented!()
     }
@@ -304,9 +340,12 @@ fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
         let (t, val) = &expr[0];
         let r = Rc::new(Register::from(&l));
         let alloc = Operation::Alloca(r.clone(), None);
-        let store = Operation::Store(val.clone(), t.clone(), r);
+        let store = Operation::Store(val.clone(), t.clone(), r.clone());
         v.push(Inst::new(alloc, t.clone()));
         v.push(Inst::new(store, t.clone()));
+        c.id.insert((*r).as_ref(), VarType::Ref);
+    } else {
+        unreachable!();
     }
 }
 
@@ -320,8 +359,14 @@ fn function(c: &mut Context, func: &ast::Function) -> Function
         None
     } else {
         Some(paramlist.iter()
-                      .map(|a| (type_cast(&a.1), Register::new(&a.0))).collect())
+                      .map(|a| (type_cast(&a.1), Register::from(&Local::new(&a.0)))).collect())
     };
+
+    if let Some(param) = &param {
+        for (t, r) in param {
+            c.id.insert(r.as_ref(), t.into());
+        }
+    }
 
     let mut f = Function::new(name, param, ret, None);
     let mut v = Vec::new();

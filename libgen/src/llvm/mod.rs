@@ -85,6 +85,13 @@ impl Local {
     }
 }
 
+impl AsRef<str> for Local {
+    fn as_ref(&self) -> &str
+    {
+        &self.id
+    }
+}
+
 impl From<&Local> for Register {
     fn from(l: &Local) -> Register
     {
@@ -385,6 +392,7 @@ impl Operation {
             Udiv(r, _, _) |
             Urem(r, _, _) => Some(r.id.clone()),
             Alloca(r, _) => Some(r.id.clone()),
+            Call(r, _, _) => if let Some(r) = r { Some(r.id.clone()) } else { None },
             Load(r, _, _) => Some(r.id.clone()),
             GetElPtr(r, _, _) => Some(r.id.clone()),
             _ => None
