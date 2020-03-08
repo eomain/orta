@@ -1,6 +1,9 @@
 
+use std::fmt;
+
 pub type List<T> = Vec<T>;
 
+// A simple type used to store a list of input tokens
 pub type TokenStream = List<Token>;
 
 // Represents a single unit `token` of the program
@@ -22,7 +25,8 @@ pub enum Token {
     Colon,
     Semi,
     Comma,
-    Assign
+    Assign,
+    Arrow
 }
 
 // language reserved keywords
@@ -40,6 +44,7 @@ pub enum Key {
     Let,
     Type,
     Foreign,
+    Extern,
     Break
 }
 
@@ -140,14 +145,20 @@ pub enum Literal {
     String(String)
 }
 
-// used to store the size of primitive integer types
-/*#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum IntegerSize {
-    S8,
-    S16,
-    S32,
-    S64
-}*/
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        use Literal::*;
+        match self {
+            Boolean(b) => write!(f, "{}", b),
+            Character(c) => write!(f, "{}", c),
+            Signed(i) => write!(f, "{}", i),
+            Unsigned(u) => write!(f, "{}", u),
+            Float(d) => write!(f, "{}", d),
+            String(s) => write!(f, "{}", s)
+        }
+    }
+}
 
 // trait to convert a type into a token
 pub trait IntoToken {
@@ -208,29 +219,6 @@ impl IntoToken for str {
     }
 }
 
-/*pub trait KeyToken {
-    fn keyword(&self) -> Option<Token>;
-}
-
-impl KeyToken for &str {
-    #[inline]
-    fn keyword(&self) -> Option<Token>
-    {
-        use Key::*;
-
-        let key = match *self {
-            "fun" => Fun,
-            "pure" => Pure,
-            "if" => If,
-            "else" => Else,
-            "while" => While,
-            _ => return None
-        };
-
-        Some(Token::Keyword(key))
-    }
-}*/
-
 #[cfg(test)]
 mod tests {
     use crate::*;
@@ -241,7 +229,6 @@ mod tests {
     fn token()
     {
         use Literal::*;
-        use IntegerSize::*;
 
         let token_n = 100.token();
         let token_c = '{'.token();
@@ -252,10 +239,4 @@ mod tests {
         assert_eq!(Token::Literal(Unsigned(256)), 256.token());
         assert_eq!(Token::Literal(Unsigned(65536)), 65536.token());
     }
-
-    /*#[test]
-    fn keyword()
-    {
-        assert_eq!(Some(Keyword(Fun)), "fun".keyword());
-    }*/
 }
