@@ -116,10 +116,16 @@ fn type_cast(dtype: &ast::DataType) -> Type
         },
         Boolean => Type::Int(1),
         String => Type::Pointer(Box::new(Type::Int(8))),
-        _ => {
-            assert_ne!(dtype, &ast::DataType::Unset);
-            unimplemented!()
-        }
+        Function(v, r) => {
+            let r = Box::new(type_cast(r));
+            let v = v.iter().map(|a| type_cast(a)).collect();
+            let f = Type::Function(r, v);
+            // the type of a function is always a pointer
+            // to the function
+            Type::Pointer(Box::new(f))
+        },
+        Unset => unreachable!(),
+        _ => unimplemented!()
     }
 }
 
@@ -195,7 +201,8 @@ fn variable(c: &mut Context, var: &ast::Variable, v: &mut Vec<Inst>) -> (Type, V
             }
         }
     } else {
-        unreachable!()
+        // Assumption! function pointer
+        (t, Value::Reg(Register::from(&GlobalId::new(&var.name))))
     }
 }
 
@@ -304,14 +311,12 @@ fn ret(c: &mut Context, r: &ast::Return, v: &mut Vec<Inst>) -> Option<Vec<(Type,
     None
 }
 
-fn call(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+fn call_args(c: &mut Context, list: &ast::ExprList,
+             v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
-    let id = GlobalId::new(&e.name);
-    let rtype = type_cast(&e.rtype);
-
-    let mut args = if e.args.len() > 0 {
+    if list.len() > 0 {
         let mut exprs = Vec::new();
-        for exp in &e.args {
+        for exp in list {
             if let Some(e) = expr(c, exp, v) {
                 let mut e = e.iter().map(|a| (a.0.clone(), a.1.clone())).collect();
                 exprs.append(&mut e);
@@ -320,17 +325,55 @@ fn call(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Option<Vec<(Ty
         Some(exprs)
     } else {
         None
-    };
+    }
+}
 
+fn call_id(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Value
+{
+    // The id of the function usually a Global,
+    // can be a Register if a function pointer
+    // If Some(_) then a function pointer
+    if let Some(t) = &e.var {
+        // Here we know its a function pointer
+        let l = Local::new(&e.name);
+        let r = Register::from(&Local::new(&e.name));
+        if let Some(VarType::Val) = c.id.get(l.as_ref()) {
+            Value::Reg(r)
+        } else {
+            let t = type_cast(t);
+            let id = c.id.register();
+            let op = Operation::Load(id.clone(), t.clone(), Rc::new(r));
+            v.push(Inst::new(op, t));
+            Value::Reg(id)
+        }
+    } else {
+        Value::Global(Rc::new(GlobalId::new(&e.name)))
+    }
+}
+
+fn call(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+{
+    // Return type of function call
+    let rtype = type_cast(&e.rtype);
+
+    // Arguments to function (Type, Value)
+    let args = call_args(c, &e.args, v);
+
+    // The id of the function
+    let id = call_id(c, e, v);
+
+    // Register for the return value
     let reg: Option<Register> = if rtype == Type::Void {
         None
     } else {
         Some(c.id.register())
     };
 
+    // Add the call instuction
     let op = Operation::Call(reg.clone(), id, args);
     v.push(Inst::new(op, rtype.clone()));
 
+    // Return the return Register
     if let Some(r) = reg {
         Some(vec![(rtype, Value::Reg(r))])
     } else {
