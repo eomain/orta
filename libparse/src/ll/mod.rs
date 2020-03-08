@@ -14,6 +14,7 @@ use libtoken::Key;
 use libtoken::Prim;
 use libtoken::Operator;
 use libtoken::ArithmeticOperator as AOp;
+use libtoken::LogicalOperator as LOp;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
@@ -21,7 +22,7 @@ use libast::Assign;
 use libast::{ Expr, ExprList };
 use libast::{ BinaryExpr, CallExpr, Return };
 use libast::DataType;
-use libast::IntType;
+use libast::{IntType, FloatType};
 use libast::ParamList;
 use libast::SyntaxTree;
 
@@ -50,13 +51,18 @@ fn types(info: &mut ParseInfo) -> PResult<DataType>
                 Prim::U8 => DataType::Integer(IntType::U8),
                 Prim::U16 => DataType::Integer(IntType::U16),
                 Prim::U32 => DataType::Integer(IntType::U32),
-                Prim::U64 => DataType::Integer(IntType::U64),
+                Prim::U64 |
+                Prim::UInt => DataType::Integer(IntType::U64),
                 Prim::S8 => DataType::Integer(IntType::S8),
                 Prim::S16 => DataType::Integer(IntType::S16),
                 Prim::S32 => DataType::Integer(IntType::S32),
-                Prim::S64 => DataType::Integer(IntType::S64),
+                Prim::S64 |
+                Prim::SInt => DataType::Integer(IntType::S64),
+                Prim::F32 => DataType::Float(FloatType::F32),
+                Prim::F64 => DataType::Float(FloatType::F64),
                 Prim::Bool => DataType::Boolean,
-                _ => unimplemented!()
+                Prim::Char => DataType::Char,
+                Prim::String => DataType::String
             }
         },
         Token::Symbol(s) => {
@@ -189,12 +195,25 @@ fn aop(info: &mut ParseInfo) -> Option<AOp>
     None
 }
 
+#[inline]
+fn cop(info: &mut ParseInfo) -> Option<LOp>
+{
+    if let Some(token) = info.look() {
+        if let Token::Operator(op) = token {
+            if let Operator::Logical(op) = op {
+                return Some(*op);
+            }
+        }
+    }
+    None
+}
+
 fn expr(info: &mut ParseInfo) -> PResult<Expr>
 {
     let msg = "expected expression";
     let token = info.look()
                     .ok_or(Error::from(msg))?;
-    let e = match token {
+    let mut e = match token {
         Token::Symbol(_) => {
             if Some(&Token::Lparen) == info.peek() {
                 Ok(Expr::Call(call(info)?))
@@ -219,7 +238,12 @@ fn expr(info: &mut ParseInfo) -> PResult<Expr>
 
     if let Some(op) = aop(info) {
         info.next();
-        return Ok(Expr::Binary(expr::bin(info, e, op)?));
+        e = Expr::Binary(expr::bin(info, e, op)?);
+    }
+
+    if let Some(op) = cop(info) {
+        info.next();
+        e = Expr::Comp(expr::cmp(info, e, op)?);
     }
 
     Ok(e)

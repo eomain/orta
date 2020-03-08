@@ -17,18 +17,9 @@ use libast::CompExpr;
 
 pub fn bexpr(info: &mut ParseInfo) -> PResult<BoolExpr>
 {
-    let msg = "expected boolean expression";
-    let token = info.next()
-                    .ok_or(Error::from(msg))?;
-    match token {
-        Token::Keyword(k) => {
-            match k {
-                Key::True => Ok(BoolExpr::Bool(true)),
-                Key::False => Ok(BoolExpr::Bool(false)),
-                _ => Err(Error::from(msg))
-            }
-        },
-        _ => Err(Error::from(msg))
+    match info.look() {
+        None => Err(Error::from("expected boolean expression")),
+        Some(_) => Ok(BoolExpr::Expr(Box::new(expr(info)?)))
     }
 }
 
