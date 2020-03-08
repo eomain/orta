@@ -98,6 +98,21 @@ impl<'a> Scope<'a> {
         }
     }
 
+    pub fn find_type(&self, id: &str) -> Result<(DataType, bool), Error>
+    {
+        match self.find(id) {
+            None => Err(Error::Undefined(id.into())),
+            Some(t) => {
+                match &t.0 {
+                    TypeInfo::Var(dt) => Ok((dt.clone(), t.1)),
+                    TypeInfo::Function((v, r)) => {
+                        Ok((DataType::Function(v.clone(), Box::new(r.clone())), t.1))
+                    }
+                }
+            }
+        }
+    }
+
     pub fn find_var(&self, id: &str) -> Result<(DataType, bool), Error>
     {
         match self.find(id) {
