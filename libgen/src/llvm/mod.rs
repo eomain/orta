@@ -331,7 +331,7 @@ pub enum Operation {
     Alloca(Rc<Register>, Option<u32>),
     Br(Value, Register, Register),
     BrCond(Register),
-    Call(Option<Register>, GlobalId, Option<Vec<(Type, Value)>>),
+    Call(Option<Register>, Value, Option<Vec<(Type, Value)>>),
     GetElPtr(Register, (Type, Rc<GlobalId>), Vec<(Type, Value)>),
     Load(Register, Type, Rc<Register>),
     Mul(Register, Value, Value),
@@ -395,12 +395,12 @@ impl Operation {
                 Some(format!("{}, label {}, label {}", c, a.id, b.id))
             },
             BrCond(r) => Some(format!("label {}", r.id)),
-            Call(_, g, args) => {
+            Call(_, v, args) => {
                 match args {
-                    None => Some(format!("{}()", g.id)),
+                    None => Some(format!("{}()", v)),
                     Some(args) => {
                         let p = param_val(args);
-                        Some(format!("{}({})", g.id, p))
+                        Some(format!("{}({})", v, p))
                     }
                 }
             },
@@ -526,6 +526,15 @@ impl AsRef<str> for GlobalId {
     fn as_ref(&self) -> &str
     {
         &self.id
+    }
+}
+
+impl From<&GlobalId> for Register {
+    fn from(g: &GlobalId) -> Register
+    {
+        Register {
+            id: g.id.clone()
+        }
     }
 }
 
