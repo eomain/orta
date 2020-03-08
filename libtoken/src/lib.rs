@@ -92,7 +92,7 @@ impl IntoToken for ArithmeticOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnaryOperator {
     Not, // negate
     Sub
@@ -105,7 +105,7 @@ impl IntoToken for UnaryOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogicalOperator {
     Eq, // equal
     Ne, // not equal
@@ -122,7 +122,7 @@ impl IntoToken for LogicalOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Operator {
     Unary(UnaryOperator),
     Arithmetic(ArithmeticOperator),
@@ -141,13 +141,13 @@ pub enum Literal {
 }
 
 // used to store the size of primitive integer types
-#[derive(Debug, Clone, PartialEq)]
+/*#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IntegerSize {
     S8,
     S16,
     S32,
     S64
-}
+}*/
 
 // trait to convert a type into a token
 pub trait IntoToken {
