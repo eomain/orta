@@ -7,6 +7,7 @@ use std::collections::HashMap;
 pub use libtoken::Literal;
 pub use libtoken::TokenStream;
 
+// used to store the size of primitive integer types
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum IntType {
     U8,
@@ -99,7 +100,7 @@ pub enum DataType {
     Array(Box<DataType>),
     Record(Rc<DataRecord>),
     //Record(String),
-    Function(Tuple, Box<DataType>),
+    Function(Vec<DataType>, Box<DataType>),
     Pointer(Rc<DataType>)
 }
 
@@ -108,11 +109,21 @@ impl fmt::Display for DataType {
     {
         write!(f, "{}", match self {
             DataType::Unset => "unset",
-            DataType::Unit => "unit",
+            DataType::Unit => "()",
             DataType::Integer(i) => i.into(),
             DataType::Float(f) => f.into(),
             DataType::Boolean => "bool",
             DataType::String => "string",
+            DataType::Function(a, r) => {
+                if a.len() == 0 {
+                    write!(f, "{} -> ", DataType::Unit)?;
+                } else {
+                    for v in a {
+                        write!(f, "{} -> ", v)?;
+                    }
+                }
+                return write!(f, "{}", *r);
+            },
             _ => unimplemented!()
         })
     }
@@ -334,7 +345,8 @@ impl Typed for Return {
 pub struct CallExpr {
     pub name: String,
     pub rtype: DataType,
-    pub args: ExprList
+    pub args: ExprList,
+    pub var: Option<DataType>
 }
 
 impl CallExpr {
@@ -343,7 +355,8 @@ impl CallExpr {
         Self {
             name: name.into(),
             rtype: DataType::Unset,
-            args
+            args,
+            var: None
         }
     }
 }
