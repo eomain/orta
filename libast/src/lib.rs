@@ -93,6 +93,7 @@ pub enum DataType {
     Integer(IntType),
     Float(FloatType),
     Boolean,
+    Char,
     String,
     Tuple(Tuple),
     Array(Box<DataType>),
@@ -177,6 +178,7 @@ impl Typed for Value {
 pub enum Expr {
     Value(Value),
     Binary(BinaryExpr),
+    Comp(CompExpr),
     Logical(LogicalExpr),
     If(IfExpr),
     Return(Return),
@@ -263,7 +265,7 @@ pub enum CompExpr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoolExpr {
-    Bool(bool),
+    Expr(Box<Expr>),
     Comp(CompExpr)
 }
 
