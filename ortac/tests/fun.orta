@@ -1,0 +1,20 @@
+
+/* sums two int values and returns an int */
+fun add(a: int, b: int): int
+{
+    return a + b;
+}
+
+/* takes a function pointer and returns it */
+fun pass(f: int -> int -> int): int -> int -> int
+{
+    return f;
+}
+
+fun main()
+{
+    /* a function pointer of the type `int -> int -> int` */
+    let f = pass(add);
+    /* apply the function pointer and print the result */
+    iprint(f(1, 1));
+}

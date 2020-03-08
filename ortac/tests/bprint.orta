@@ -1,0 +1,16 @@
+
+/* displays the value of a boolean */
+fun bprint(val: bool)
+{
+    if (val) {
+        print("true");
+    } else {
+        print("false");
+    }
+}
+
+fun main()
+{
+    bprint(true);
+    bprint(false);
+}
