@@ -29,6 +29,7 @@ impl From<&Type> for VarType {
 struct Id {
     lindex: usize,
     gindex: usize,
+    llabel: usize,
     locals: HashMap<String, VarType>
 }
 
@@ -38,6 +39,7 @@ impl Id {
         Self {
             lindex: 1,
             gindex: 1,
+            llabel: 1,
             locals: HashMap::new()
         }
     }
@@ -66,9 +68,18 @@ impl Id {
         GlobalId::new(&id)
     }
 
+    fn label(&mut self) -> (String, Operation)
+    {
+        let lbl = format!("Lb{}", self.llabel);
+        let op = label(&lbl);
+        self.llabel += 1;
+        (lbl, op)
+    }
+
     fn reset(&mut self)
     {
         self.lindex = 1;
+        self.llabel = 1;
     }
 }
 
@@ -96,7 +107,15 @@ fn type_cast(dtype: &ast::DataType) -> Type
                 S64 => Type::Int(64)
             }
         },
+        Float(f) => {
+            use ast::FloatType::*;
+            match f {
+                F32 => Type::Float,
+                F64 => Type::Double
+            }
+        },
         Boolean => Type::Int(1),
+        String => Type::Pointer(Box::new(Type::Int(8))),
         _ => {
             assert_ne!(dtype, &ast::DataType::Unset);
             unimplemented!()
@@ -134,6 +153,7 @@ fn literal(c: &mut Context, l: &ast::Literal,
     match l {
         Signed(i) => (type_cast(t), Value::Int(*i)),
         Unsigned(u) => (type_cast(t), Value::Uint(*u)),
+        Float(f) => (type_cast(t), Value::Float(*f)),
         String(s) => {
             let id = c.id.register();
             let (constant, gid) = constant(c, l);
@@ -148,7 +168,7 @@ fn literal(c: &mut Context, l: &ast::Literal,
             v.push(Inst::new(op, stype));
 
             c.m.append(constant);
-            let t = Type::Pointer(Box::new(Type::Int(8)));
+            let t = type_cast(t);
             (t, Value::Reg(id))
         },
         Boolean(b) => (type_cast(t), if *b { Value::Int(1) } else { Value::Int(0) }),
@@ -324,6 +344,7 @@ fn expr(c: &mut Context, e: &ast::Expr, v: &mut Vec<Inst>) -> Option<Vec<(Type, 
     match e {
         Value(e) => value(c, e, v),
         Binary(b) => bin(c, b, v),
+        If(f) => { conditional(c, f, v); None },
         Return(r) => ret(c, r, v),
         Assign(a) => { assign(c, a, v); None },
         Call(e) => call(c, e, v),
@@ -349,6 +370,60 @@ fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
     }
 }
 
+fn bexpr(c: &mut Context, b: &ast::BoolExpr, v: &mut Vec<Inst>) -> (Type, Value)
+{
+    use ast::Literal;
+    use ast::DataType;
+    use ast::BoolExpr;
+    match b {
+        BoolExpr::Expr(e) => expr(c, e, v).unwrap()[0].clone(),
+        _ => unimplemented!()
+    }
+}
+
+fn conditional_else(c: &mut Context, br: &ast::IfExpr, v: &mut Vec<Inst>)
+{
+    let (_, val) = bexpr(c, &br.cond, v);
+    let (start, sop) = c.id.label();
+    let (els, elop) = c.id.label();
+    let (ends, endop) = c.id.label();
+    let op = Operation::Br(val, Register::new(&start), Register::new(&els));
+    let jmp = Operation::BrCond(Register::new(&ends));
+    v.push(Inst::new(op, Type::Int(1)));
+    v.push(Inst::new(sop, Type::Label));
+    for e in &br.expr {
+        expr(c, e, v);
+    }
+    v.push(Inst::new(jmp.clone(), Type::Label));
+    if let Some(exprs) = &br.other {
+        v.push(Inst::new(elop, Type::Label));
+        for e in exprs {
+            expr(c, e, v);
+        }
+        v.push(Inst::new(jmp, Type::Label));
+    }
+    v.push(Inst::new(endop, Type::Label));
+}
+
+fn conditional(c: &mut Context, br: &ast::IfExpr, v: &mut Vec<Inst>)
+{
+    if br.other.is_some() {
+        return conditional_else(c, br, v);
+    }
+    let (_, val) = bexpr(c, &br.cond, v);
+    let (start, sop) = c.id.label();
+    let (ends, endop) = c.id.label();
+    let op = Operation::Br(val, Register::new(&start), Register::new(&ends));
+    let jmp = Operation::BrCond(Register::new(&ends));
+    v.push(Inst::new(op, Type::Int(1)));
+    v.push(Inst::new(sop, Type::Label));
+    for e in &br.expr {
+        expr(c, e, v);
+    }
+    v.push(Inst::new(jmp.clone(), Type::Label));
+    v.push(Inst::new(endop, Type::Label));
+}
+
 // Convert an AST function into an LLVM function
 fn function(c: &mut Context, func: &ast::Function) -> Function
 {
@@ -364,7 +439,7 @@ fn function(c: &mut Context, func: &ast::Function) -> Function
 
     if let Some(param) = &param {
         for (t, r) in param {
-            c.id.insert(r.as_ref(), t.into());
+            c.id.insert(r.as_ref(), VarType::Val);
         }
     }
 

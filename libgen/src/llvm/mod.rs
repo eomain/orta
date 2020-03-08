@@ -217,8 +217,10 @@ pub enum Type {
     Float,
     Double,
     Array(usize, Box<Type>),
+    Function(Box<Type>, Vec<Type>),
     Pointer(Box<Type>),
-    Types(Rc<GlobalId>, Vec<Type>)
+    Types(Rc<GlobalId>, Vec<Type>),
+    Label
 }
 
 impl From<Type> for String {
@@ -234,7 +236,12 @@ impl From<Type> for String {
             Array(s, t) => {
                  let t: String = (*t).into();
                  format!("[{} x {}]", s, t)
-             },
+            },
+            Function(r, p) => {
+                let r = String::from(*r);
+                let p = param_dec(&p);
+                format!("{} ({})", r, p)
+            },
             Pointer(t) => {
                 let t: String = (*t).into();
                 format!("{}*", t)
@@ -242,7 +249,8 @@ impl From<Type> for String {
             Types(r, t) => {
                 let p = param_dec(&t);
                 format!("{} = type {{ {} }}", r.id, p)
-            }
+            },
+            Label => "".into()
         }
     }
 }
@@ -263,11 +271,25 @@ fn types()
     println!("{}", t);
 }
 
+#[test]
+fn fun_type_test()
+{
+    use Type::*;
+    let r = Int(32);
+    let p = vec![
+        Int(32), Int(32)
+    ];
+    let f = Function(Box::new(r), p);
+    let p = Pointer(Box::new(f));
+    println!("{}", p);
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Void,
     Int(isize),
     Uint(usize),
+    Float(f64),
     Reg(Register),
     Local(Local),
     Global(Rc<GlobalId>)
@@ -282,6 +304,7 @@ impl From<Value> for String
             Void => "".into(),
             Int(i) => format!("{}", i),
             Uint(u) => format!("{}", u),
+            Float(f) => format!("{}", f),
             Local(l) => l.id,
             Reg(r) => r.id,
             Global(g) => g.id.clone()
@@ -297,10 +320,17 @@ impl fmt::Display for Value {
     }
 }
 
+pub fn label(s: &str) -> Operation
+{
+    Operation::Label(format!("{}:", s))
+}
+
 #[derive(Debug, Clone)]
 pub enum Operation {
     Add(Register, Value, Value),
     Alloca(Rc<Register>, Option<u32>),
+    Br(Value, Register, Register),
+    BrCond(Register),
     Call(Option<Register>, GlobalId, Option<Vec<(Type, Value)>>),
     GetElPtr(Register, (Type, Rc<GlobalId>), Vec<(Type, Value)>),
     Load(Register, Type, Rc<Register>),
@@ -312,6 +342,7 @@ pub enum Operation {
     Srem(Register, Value, Value),
     Udiv(Register, Value, Value),
     Urem(Register, Value, Value),
+    Label(String)
 }
 
 impl Operation {
@@ -321,6 +352,8 @@ impl Operation {
         match self {
             Add(_, _, _) => "add",
             Alloca(_, _) => "alloca",
+            Br(_, _, _) => "br",
+            BrCond(_) => "br",
             Call(_, _, _) => "call",
             GetElPtr(_, _, _) => "getelementptr",
             Load(_, _, _) => "load",
@@ -332,6 +365,7 @@ impl Operation {
             Srem(_, _, _) => "srem",
             Udiv(_, _, _) => "udiv",
             Urem(_, _, _) => "urem",
+            Label(s) => &s
         }
     }
 
@@ -357,6 +391,10 @@ impl Operation {
                     None
                 }
             },
+            Br(c, a, b) => {
+                Some(format!("{}, label {}, label {}", c, a.id, b.id))
+            },
+            BrCond(r) => Some(format!("label {}", r.id)),
             Call(_, g, args) => {
                 match args {
                     None => Some(format!("{}()", g.id)),
