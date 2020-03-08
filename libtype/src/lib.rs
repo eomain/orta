@@ -92,7 +92,7 @@ mod check {
     use libast::Literal;
     use libast::Value;
     use libast::{Assign, Return};
-    use libast::{Expr, BinaryExpr, CallExpr};
+    use libast::{Expr, BinaryExpr, BoolExpr, CallExpr, IfExpr};
     use libast::Function;
 
     /*fn id<'a>(scope: &'a Scope, name: &str) -> Result<&'a TypeInfo, Error>
@@ -148,7 +148,7 @@ mod check {
             DataType::Integer(a) => {
                 if let DataType::Integer(b) = *b {
                     match a {
-                        S8  => b == S8 ||b == U8,
+                        S8  => b == S8 || b == U8,
                         S16 => b == S8 || b == S16 || b == U8 || b == U16,
                         S32 => b == S8 || b == S16 || b == S32 || b == U8 || b == U16 || b == U32,
                         S64 => b == S8 || b == S16 || b == S32 || b == S64 ||
@@ -164,7 +164,14 @@ mod check {
                 }
             },
             DataType::Float(a) => {
-                unimplemented!()
+                if let DataType::Float(b) = *b {
+                    match a {
+                        F32 => b == F32,
+                        F64 => b == F32 || b == F64
+                    }
+                } else {
+                    false
+                }
             },
             _ => false
         }
@@ -182,11 +189,12 @@ mod check {
     {
         *v = match v {
             Value::Unit => return Ok(()),
-            Value::Literal(l, _) => {
+            Value::Literal(l, dtype) => {
                 let l = l.clone();
                 let lit = literal(s, &l);
                 if let Some(t) = expt {
                     if t == lit {
+                        *dtype = lit;
                         return Ok(());
                     } else if convertable(&t, &lit) {
                         Value::Literal(l, t)
@@ -204,6 +212,8 @@ mod check {
                         if let Some(expt) = expt {
                             if t != expt && t != DataType::Unset && f {
                                 return Err(type_error(&t, &expt));
+                            } else {
+                                v.dtype = t.clone();
                             }
                             if convertable(&expt, &t) {
                                 v.dtype = expt.clone();
@@ -257,7 +267,7 @@ mod check {
         Ok(())
     }
 
-    fn bexpr(i: &mut Info, s: &mut Scope,
+    fn bin(i: &mut Info, s: &mut Scope,
              b: &mut BinaryExpr, expt: Option<DataType>) -> Result<(), Error>
     {
         use BinaryExpr::*;
@@ -286,7 +296,8 @@ mod check {
     {
         match e {
             Expr::Value(v) => value(i, s, v, expt)?,
-            Expr::Binary(b) => bexpr(i, s, b, expt)?,
+            Expr::Binary(b) => bin(i, s, b, expt)?,
+            Expr::If(f) => conditional(i, s, f, expt)?,
             Expr::Assign(a) => assign(i, s, a)?,
             Expr::Call(c) => call(i, s, c, expt)?,
             _ => ()
@@ -315,6 +326,31 @@ mod check {
             }
         } else {
             r.dtype = DataType::Unit;
+        }
+        Ok(())
+    }
+
+    fn bexpr(i: &mut Info, s: &mut Scope,
+             b: &mut BoolExpr, expt: Option<DataType>) -> Result<(), Error>
+    {
+        match b {
+            BoolExpr::Expr(e) => expr(i, s, e, expt)?,
+            _ => unimplemented!()
+        }
+        Ok(())
+    }
+
+    fn conditional(i: &mut Info, s: &mut Scope,
+                   br: &mut IfExpr, expt: Option<DataType>) -> Result<(), Error>
+    {
+        bexpr(i, s, &mut br.cond, Some(DataType::Boolean))?;
+        for e in &mut br.expr {
+            expr(i, s, e, None)?;
+        }
+        if let Some(exprs) = &mut br.other {
+            for e in exprs {
+                expr(i, s, e, None)?;
+            }
         }
         Ok(())
     }
