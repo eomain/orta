@@ -39,10 +39,34 @@ fn id(info: &mut ParseInfo) -> PResult<String>
     }
 }
 
+fn unit(info: &mut ParseInfo) -> PResult<DataType>
+{
+    token!(Token::Lparen, info.next())?;
+    token!(Token::Rparen, info.next())?;
+    Ok(DataType::Unit)
+}
+
+#[test]
+fn unit_test()
+{
+    extern crate liblex;
+    use DataType::*;
+
+    let tokens = liblex::scan(r#"()"#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let u = unit(&mut info).unwrap();
+    assert_eq!(u, DataType::Unit);
+    println!("{:?}", u);
+}
+
 // Transforms token into the respective data type
-fn types(info: &mut ParseInfo) -> PResult<DataType>
+fn type_name(info: &mut ParseInfo) -> PResult<DataType>
 {
     let msg = "expected type";
+    if let Some(&Token::Lparen) = info.look() {
+        return Ok(unit(info)?);
+    }
     let token = info.next()
                     .ok_or(Error::from(msg))?;
     Ok(match token {
@@ -71,6 +95,50 @@ fn types(info: &mut ParseInfo) -> PResult<DataType>
 
         _ => return Err(Error::from(msg))
     })
+}
+
+fn fun_ptr(info: &mut ParseInfo) -> PResult<DataType>
+{
+    let mut v = Vec::new();
+    v.push(type_name(info)?);
+    info.next();
+    while let Some(&Token::Arrow) = info.peek() {
+        v.push(type_name(info)?);
+        info.next();
+    }
+    let r = type_name(info)?;
+    Ok(DataType::Function(v, Box::new(r)))
+}
+
+#[test]
+fn fun_ptr_test()
+{
+    extern crate liblex;
+    use DataType::*;
+    use IntType::*;
+
+    let tokens = liblex::scan(r#"i64 -> i64 -> i64"#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let fptr = fun_ptr(&mut info).unwrap();
+    let v = vec![
+        Integer(S64), Integer(S64)
+    ];
+    let r = Box::new(Integer(S64));
+    assert_eq!(fptr, Function(v, r));
+    println!("{:?}", fptr);
+}
+
+// Transforms token into the respective data type
+fn types(info: &mut ParseInfo) -> PResult<DataType>
+{
+    match (info.look(), info.peek()) {
+        (_, Some(&Token::Arrow)) => Ok(fun_ptr(info)?),
+        (Some(&Token::Lparen), Some(&Token::Rparen)) => {
+            Ok(fun_ptr(info)?)
+        },
+        _ => Ok(type_name(info)?)
+    }
 }
 
 // Obtains a value from a variable or literal
