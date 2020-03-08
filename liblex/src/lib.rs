@@ -1,6 +1,8 @@
 
 extern crate libtoken;
 
+mod error;
+
 use std::fmt;
 use std::io::Read;
 
@@ -13,36 +15,7 @@ use libtoken::Prim;
 use libtoken::ArithmeticOperator;
 use libtoken::LogicalOperator as LOp;
 use libtoken::UnaryOperator as UOp;
-
-// The type returned if there is an error
-// found while lexing.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Error {
-    Invalid(String),
-    CommentEnd(Cursor),
-    QuouteEnd(Cursor),
-    Custom(&'static str)
-}
-
-impl From<&Error> for String {
-    fn from(e: &Error) -> String
-    {
-        use Error::*;
-        match e {
-            Invalid(s) => format!("found invalid sequence: `{}`", s),
-            CommentEnd(c) => format!("expected a closing `*\\`, following the opening on {}", c),
-            QuouteEnd(c) => format!("expected a closing `\"`, following the opening on {}", c),
-            Custom(s) => (*s).into()
-        }
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
-    {
-        write!(f, "{}", String::from(self))
-    }
-}
+pub use error::Error;
 
 #[inline]
 fn alpha(c: char) -> bool
@@ -208,7 +181,7 @@ fn ident(lexer: &mut Lexer) -> Token
     lexer.string.token()
 }
 
-static KEYWORDS: [(&str, Key); 13] = [
+static KEYWORDS: [(&str, Key); 14] = [
     ("fun", Key::Fun),
     ("pure", Key::Pure),
     ("if", Key::If),
@@ -221,6 +194,7 @@ static KEYWORDS: [(&str, Key); 13] = [
     ("let", Key::Let),
     ("type", Key::Type),
     ("foreign", Key::Foreign),
+    ("extern", Key::Extern),
     ("break", Key::Break)
 ];
 
@@ -284,7 +258,9 @@ fn number(lexer: &mut Lexer) -> Token
     lexer.read_while(numeric);
     if lexer.check('.') {
         lexer.read_while(numeric);
-        /* TODO: check for `.` */
+        if Some('.') == lexer.ahead() {
+            // TODO: error
+        }
         return lexer.string.parse::<f64>().unwrap().token()
     }
     lexer.string.parse::<usize>().unwrap().token()
@@ -315,7 +291,6 @@ fn string(lexer: &mut Lexer) -> Result<Token, Error>
         s = escape(s, e.0, e.1);
     }
     let token = Token::Literal(libtoken::Literal::String(s));
-    /* TODO: check for `"` */
     if Some('\"') != lexer.ahead() {
         return Err(Error::QuouteEnd(c));
     }
@@ -412,7 +387,11 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 ';' => Token::Semi,
                 ',' => Token::Comma,
                 '=' | '!' | '>' | '<' | '+' | '-' | '*' | '/' | '%' => {
-                    operator(&mut lexer, c)
+                    if c == '-' && lexer.check('>') {
+                        Token::Arrow
+                    } else {
+                        operator(&mut lexer, c)
+                    }
                 },
                 '0' => {
                     if let Some(c) = lexer.ahead() {
@@ -587,5 +566,15 @@ mod tests {
         assert_eq!(tokens.next(), Some(&Literal(libtoken::Literal::Float(0.5))));
         tokens.next();
         assert_eq!(tokens.next(), Some(&Literal(libtoken::Literal::Float(2.5))));
+    }
+
+    #[test]
+    fn arrow()
+    {
+        let input = "->".chars().collect();
+        let stream = scan(input).unwrap();
+        let mut tokens = stream.iter();
+
+        assert_eq!(tokens.next(), Some(&Arrow));
     }
 }
