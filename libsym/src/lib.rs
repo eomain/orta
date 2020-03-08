@@ -1,4 +1,6 @@
 
+mod librt;
+
 use std::collections::HashMap;
 use libast::DataType;
 use libast::ParamList;
@@ -146,28 +148,6 @@ impl<'a> Scope<'a> {
         } else {
             false
         }
-    }
-}
-
-mod librt {
-    use super::Signature;
-    use super::TypeInfo;
-    use super::Scope;
-    use libast::DataType;
-    use libast::IntType::*;
-
-    pub fn insert(mut s: Scope) -> Scope
-    {
-        s.insert("print", (TypeInfo::Function(
-            (vec![DataType::String], DataType::Unit)
-        ), true));
-        s.insert("iprint", (TypeInfo::Function(
-            (vec![DataType::Integer(S64)], DataType::Unit)
-        ), true));
-        s.insert("exit", (TypeInfo::Function(
-            (vec![DataType::Integer(S32)], DataType::Unit)
-        ), true));
-        s
     }
 }
 
