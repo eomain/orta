@@ -115,7 +115,7 @@ fn value(i: &mut Info, s: &mut Scope,
             }
         },
         Value::Variable(v) => {
-            match s.find_var(&v.name) {
+            match s.find_type(&v.name) {
                 Err(e) => return Err(e.into()),
                 Ok((t, f)) => {
                     if let Some(expt) = expt {
@@ -145,9 +145,22 @@ fn value(i: &mut Info, s: &mut Scope,
 fn call(info: &mut Info, s: &mut Scope,
         c: &mut CallExpr, expt: Option<DataType>) -> Result<(), Error>
 {
-    let (args, ret) = match s.find_fun_type(&c.name) {
+    // check if the call is on a variable (function pointer)
+    let var = s.find_var(&c.name).is_ok();
+
+    // get the argument types and the return type
+    let (args, ret) = match s.find_type(&c.name) {
         Err(e) => return Err(e.into()),
-        Ok(sig) => sig.clone()
+        Ok((sig, _)) => {
+            if let DataType::Function(v, r) = &sig {
+                if var {
+                    c.var = Some(sig.clone());
+                }
+                (v.clone(), (**r).clone())
+            } else {
+                return Err(Error::Custom("not a function!".into()));
+            }
+        }
     };
 
     let (a, b) = (args.len(), c.args.len());
