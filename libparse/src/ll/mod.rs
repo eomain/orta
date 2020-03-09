@@ -101,11 +101,14 @@ fn type_name(info: &mut ParseInfo) -> PResult<DataType>
 fn fun_ptr(info: &mut ParseInfo) -> PResult<DataType>
 {
     let mut v = Vec::new();
-    v.push(type_name(info)?);
+    let dtype = type_name(info)?;
     info.next();
-    while let Some(&Token::Arrow) = info.peek() {
-        v.push(type_name(info)?);
-        info.next();
+    if dtype != DataType::Unit {
+        v.push(dtype);
+        while let Some(&Token::Arrow) = info.peek() {
+            v.push(type_name(info)?);
+            info.next();
+        }
     }
     let r = type_name(info)?;
     Ok(DataType::Function(v, Box::new(r)))
@@ -126,6 +129,15 @@ fn fun_ptr_test()
         Integer(S64), Integer(S64)
     ];
     let r = Box::new(Integer(S64));
+    assert_eq!(fptr, Function(v, r));
+    println!("{:?}", fptr);
+
+    let tokens = liblex::scan(r#"() -> ()"#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let fptr = fun_ptr(&mut info).unwrap();
+    let v = Vec::new();
+    let r = Box::new(Unit);
     assert_eq!(fptr, Function(v, r));
     println!("{:?}", fptr);
 }
