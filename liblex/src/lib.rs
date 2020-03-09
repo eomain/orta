@@ -14,6 +14,7 @@ use libtoken::Key;
 use libtoken::Prim;
 use libtoken::ArithmeticOperator as AOp;
 use libtoken::LogicalOperator as LOp;
+use libtoken::RelationalOperator as ROp;
 use libtoken::UnaryOperator as UOp;
 use libtoken::BitwiseOperator as BOp;
 pub use error::Error;
@@ -320,14 +321,14 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
         '%' => Mod.token(),
         '=' => {
             if lexer.check('=') {
-                LOp::Eq.token()
+                ROp::Eq.token()
             } else {
                 Token::Assign
             }
         },
         '!' => {
             if lexer.check('=') {
-                LOp::Ne.token()
+                ROp::Ne.token()
             } else {
                 UOp::Not.token()
             }
@@ -346,18 +347,18 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
             if lexer.check('>') {
                 BOp::Rshift.token()
             } else if lexer.check('=') {
-                LOp::Ge.token()
+                ROp::Ge.token()
             } else {
-                LOp::Gt.token()
+                ROp::Gt.token()
             }
         },
         '<' => {
             if lexer.check('<') {
                 BOp::Lshift.token()
             } else if lexer.check('=') {
-                LOp::Le.token()
+                ROp::Le.token()
             } else {
-                LOp::Lt.token()
+                ROp::Lt.token()
             }
         },
         '^' => BOp::Xor.token(),
