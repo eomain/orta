@@ -1,0 +1,22 @@
+
+/* declare a foreign function that takes a
+   one argument, a function pointer of type `() -> ()` */
+foreign fun invoke(() -> ());
+/* another foreign function take takes no arguments */
+foreign fun run();
+
+/* a test function to be invoked */
+fun test()
+{
+    print("this function has been invoked");
+}
+
+fun main()
+{
+    print("calling foreign function run...");
+    /* call foreign function `run` */
+    run();
+    /* call foreign function `invoke` with the `test` function */
+    invoke(test);
+    print("...returned from foreign function run");
+}
