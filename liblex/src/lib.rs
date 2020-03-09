@@ -362,6 +362,7 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
             }
         },
         '^' => BOp::Xor.token(),
+        '~' => BOp::Comp.token(),
         _ => unreachable!()
     }
 }
@@ -404,7 +405,7 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 ':' => Token::Colon,
                 ';' => Token::Semi,
                 ',' => Token::Comma,
-                '=' | '!' | '>' | '<' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' => {
+                '=' | '!' | '>' | '<' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '~' => {
                     if c == '-' && lexer.check('>') {
                         Token::Arrow
                     } else {
@@ -602,7 +603,7 @@ mod tests {
         use libtoken::BitwiseOperator::*;
 
         let input = r#"
-            &|^<<>>
+            &|^~<<>>
         "#.chars().collect();
         let stream = scan(input).unwrap();
 
@@ -610,6 +611,7 @@ mod tests {
         assert_eq!(tokens.next(), Some(&And.token()));
         assert_eq!(tokens.next(), Some(&Or.token()));
         assert_eq!(tokens.next(), Some(&Xor.token()));
+        assert_eq!(tokens.next(), Some(&Comp.token()));
         assert_eq!(tokens.next(), Some(&Lshift.token()));
         assert_eq!(tokens.next(), Some(&Rshift.token()));
     }
