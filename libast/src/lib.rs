@@ -192,6 +192,7 @@ pub enum Expr {
     Comp(CompExpr),
     Logical(LogicalExpr),
     If(IfExpr),
+    While(WhileExpr),
     Return(Return),
     Assign(Box<Assign>),
     Call(CallExpr)
