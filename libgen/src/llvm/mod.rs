@@ -304,7 +304,7 @@ impl From<Value> for String
             Void => "".into(),
             Int(i) => format!("{}", i),
             Uint(u) => format!("{}", u),
-            Float(f) => format!("{}", f),
+            Float(f) => format!("{:.32}", f),
             Local(l) => l.id,
             Reg(r) => r.id,
             Global(g) => g.id.clone()
@@ -328,6 +328,7 @@ pub fn label(s: &str) -> Operation
 #[derive(Debug, Clone)]
 pub enum Operation {
     Add(Register, Value, Value),
+    Fadd(Register, Value, Value),
     Alloca(Rc<Register>, Option<u32>),
     Br(Value, Register, Register),
     BrCond(Register),
@@ -335,11 +336,15 @@ pub enum Operation {
     GetElPtr(Register, (Type, Rc<GlobalId>), Vec<(Type, Value)>),
     Load(Register, Type, Rc<Register>),
     Mul(Register, Value, Value),
+    Fmul(Register, Value, Value),
     Ret(Option<Value>),
     Store(Value, Type, Rc<Register>),
     Sub(Register, Value, Value),
+    Fsub(Register, Value, Value),
     Sdiv(Register, Value, Value),
+    Fdiv(Register, Value, Value),
     Srem(Register, Value, Value),
+    Frem(Register, Value, Value),
     Udiv(Register, Value, Value),
     Urem(Register, Value, Value),
     Label(String)
@@ -351,6 +356,7 @@ impl Operation {
         use Operation::*;
         match self {
             Add(_, _, _) => "add",
+            Fadd(_, _, _) => "fadd",
             Alloca(_, _) => "alloca",
             Br(_, _, _) => "br",
             BrCond(_) => "br",
@@ -358,11 +364,15 @@ impl Operation {
             GetElPtr(_, _, _) => "getelementptr",
             Load(_, _, _) => "load",
             Mul(_, _, _) => "mul",
+            Fmul(_, _, _) => "fmul",
             Ret(_) => "ret",
             Store(_, _, _) => "store",
             Sub(_, _, _) => "sub",
+            Fsub(_, _, _) => "fsub",
             Sdiv(_, _, _) => "sdiv",
+            Fdiv(_, _, _) => "fdiv",
             Srem(_, _, _) => "srem",
+            Frem(_, _, _) => "frem",
             Udiv(_, _, _) => "udiv",
             Urem(_, _, _) => "urem",
             Label(s) => &s
@@ -374,10 +384,15 @@ impl Operation {
         use Operation::*;
         match self {
             Add(_, a, b) |
+            Fadd(_, a, b) |
             Mul(_, a, b) |
+            Fmul(_, a, b) |
             Sub(_, a, b) |
+            Fsub(_, a, b) |
             Sdiv(_, a, b) |
+            Fdiv(_, a, b) |
             Srem(_, a, b) |
+            Frem(_, a, b) |
             Udiv(_, a, b) |
             Urem(_, a, b) => Some(format!("{}, {}", a, b)),
             Ret(v) => match v {
@@ -423,10 +438,15 @@ impl Operation {
         use Operation::*;
         match self {
             Add(r, _, _) |
+            Fadd(r, _, _) |
             Mul(r, _, _) |
+            Fmul(r, _, _) |
             Sub(r, _, _) |
+            Fsub(r, _, _) |
             Sdiv(r, _, _) |
+            Fdiv(r, _, _) |
             Srem(r, _, _) |
+            Frem(r, _, _) |
             Udiv(r, _, _) |
             Urem(r, _, _) => Some(r.id.clone()),
             Alloca(r, _) => Some(r.id.clone()),

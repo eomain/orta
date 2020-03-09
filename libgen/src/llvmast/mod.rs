@@ -1,8 +1,12 @@
 
 use std::rc::Rc;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use super::llvm::*;
 use super::libast as ast;
+use ast::Typed;
+
+type Set<T> = HashSet<T>;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum VarType {
@@ -59,6 +63,18 @@ impl Id {
         let id = format!("r.{}", self.lindex);
         self.lindex += 1;
         Register::new(&id)
+    }
+
+    fn local(&self, id: &str) -> Local
+    {
+        let mut i = 0;
+        let mut s = String::from(id);
+        let mut l = Local::new(&s);
+        /*while self.locals.contains_key(l.as_ref()) {
+            s = format!("{}.{}", s, i);
+            l = Local::new(&s);
+        }*/
+        l
     }
 
     fn global(&mut self) -> GlobalId
@@ -276,10 +292,42 @@ fn signed(t: &Type) -> bool
     }
 }
 
-fn bin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+fn fbin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> (Operation, Type, Register)
 {
     use ast::BinaryExpr::*;
-    let (op, t, id) = match b {
+    match b {
+        Add(a, b) => {
+            let (t, e1, e2) = bin_expr(c, (a, b), v);
+            let id = c.id.register();
+            (Operation::Fadd(id.clone(), e1, e2), t, id)
+        },
+        Sub(a, b) => {
+            let (t, e1, e2) = bin_expr(c, (a, b), v);
+            let id = c.id.register();
+            (Operation::Fsub(id.clone(), e1, e2), t, id)
+        },
+        Mul(a, b) => {
+            let (t, e1, e2) = bin_expr(c, (a, b), v);
+            let id = c.id.register();
+            (Operation::Fmul(id.clone(), e1, e2), t, id)
+        },
+        Div(a, b) => {
+            let (t, e1, e2) = bin_expr(c, (a, b), v);
+            let id = c.id.register();
+            (Operation::Fdiv(id.clone(), e1, e2), t, id)
+        },
+        Mod(a, b) => {
+            let (t, e1, e2) = bin_expr(c, (a, b), v);
+            let id = c.id.register();
+            (Operation::Frem(id.clone(), e1, e2), t, id)
+        }
+    }
+}
+
+fn ibin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> (Operation, Type, Register)
+{
+    use ast::BinaryExpr::*;
+    match b {
         Add(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
             let id = c.id.register();
@@ -313,6 +361,16 @@ fn bin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> Option<Vec<(T
                 (Operation::Urem(id.clone(), e1, e2), t, id)
             }
         }
+    }
+}
+
+fn bin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+{
+    use ast::BinaryExpr::*;
+    let (op, t, id) = match b.get_type() {
+        ast::DataType::Integer(_) => ibin(c, b, v),
+        ast::DataType::Float(_) => fbin(c, b, v),
+        _ => unreachable!()
     };
 
     v.push(Inst::new(op, t.clone()));
@@ -421,7 +479,7 @@ fn expr(c: &mut Context, e: &ast::Expr, v: &mut Vec<Inst>) -> Option<Vec<(Type, 
 
 fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
 {
-    let l = Local::new(&a.id);
+    let l = c.id.local(&a.id);
     let t = type_cast(&a.dtype);
 
     if let Some(expr) = expr(c, &a.expr, v) {
