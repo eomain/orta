@@ -42,6 +42,7 @@ pub enum Key {
     False,
     Return,
     Let,
+    Var,
     Type,
     Foreign,
     Extern,
@@ -128,10 +129,28 @@ impl IntoToken for LogicalOperator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BitwiseOperator {
+    And,
+    Or,
+    Xor,
+    Comp,
+    Lshift,
+    Rshift
+}
+
+impl IntoToken for BitwiseOperator {
+    fn token(&self) -> Token
+    {
+        Token::Operator(Operator::Bitwise(self.clone()))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Operator {
     Unary(UnaryOperator),
     Arithmetic(ArithmeticOperator),
-    Logical(LogicalOperator)
+    Logical(LogicalOperator),
+    Bitwise(BitwiseOperator)
 }
 
 // type for all primitive literal values
