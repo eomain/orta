@@ -10,7 +10,7 @@ use libast::FloatType;
 use libast::Literal;
 use libast::Value;
 use libast::{Assign, Return};
-use libast::{Expr, BinaryExpr, BoolExpr, CallExpr, IfExpr};
+use libast::{Expr, BinaryExpr, BoolExpr, CallExpr, IfExpr, WhileExpr};
 use libast::Function;
 
 fn literal(s: &mut Scope, l: &Literal) -> DataType
@@ -273,6 +273,16 @@ fn conditional(i: &mut Info, s: &mut Scope,
         for e in exprs {
             expr(i, s, e, None)?;
         }
+    }
+    Ok(())
+}
+
+fn loop_while(i: &mut Info, s: &mut Scope, br: &mut WhileExpr,
+              expt: Option<DataType>) -> Result<(), Error>
+{
+    bexpr(i, s, &mut br.cond, Some(DataType::Boolean))?;
+    for e in &mut br.expr {
+        expr(i, s, e, None)?;
     }
     Ok(())
 }
