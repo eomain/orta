@@ -15,6 +15,7 @@ use libtoken::Prim;
 use libtoken::Operator;
 use libtoken::ArithmeticOperator as AOp;
 use libtoken::LogicalOperator as LOp;
+use libtoken::RelationalOperator as ROp;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
@@ -264,11 +265,11 @@ fn aop(info: &mut ParseInfo) -> Option<AOp>
 }
 
 #[inline]
-fn cop(info: &mut ParseInfo) -> Option<LOp>
+fn cop(info: &mut ParseInfo) -> Option<ROp>
 {
     if let Some(token) = info.look() {
         if let Token::Operator(op) = token {
-            if let Operator::Logical(op) = op {
+            if let Operator::Relational(op) = op {
                 return Some(*op);
             }
         }

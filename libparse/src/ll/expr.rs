@@ -6,6 +6,7 @@ use libtoken::Token;
 use libtoken::Operator;
 use libtoken::ArithmeticOperator as AOp;
 use libtoken::LogicalOperator as LOp;
+use libtoken::RelationalOperator as ROp;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
@@ -37,11 +38,11 @@ pub fn bin(info: &mut ParseInfo, e: Expr, op: AOp) -> PResult<BinaryExpr>
     })
 }
 
-pub fn cmp(info: &mut ParseInfo, e: Expr, op: LOp) -> PResult<CompExpr>
+pub fn cmp(info: &mut ParseInfo, e: Expr, op: ROp) -> PResult<CompExpr>
 {
     let e2 = Box::new(expr(info)?);
     let e1 = Box::new(e);
-    use LOp::*;
+    use ROp::*;
     Ok(match op {
         Eq => CompExpr::Eq(e1, e2),
         Ne => CompExpr::Ne(e1, e2),
