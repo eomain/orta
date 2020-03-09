@@ -155,14 +155,12 @@ impl<'a> Scope<'a> {
         }
     }
 
+    // Checks if the identifier can be found
+    // in the current scope.
     #[inline]
     pub fn contains(&self, id: &str) -> bool
     {
-        if let Some(_) = self.find(id) {
-            true
-        } else {
-            false
-        }
+        self.entry.contains_key(id)
     }
 }
 
