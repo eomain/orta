@@ -308,6 +308,7 @@ fn expr(info: &mut ParseInfo) -> PResult<Expr>
         Token::Keyword(k) => {
             match k {
                 Key::If => Ok(Expr::If(branch::conditional(info)?)),
+                Key::While => Ok(Expr::While(iter::loop_while(info)?)),
                 Key::True | Key::False => Ok(Expr::Value(value(info)?)),
                 Key::Return => Ok(Expr::Return(ret(info)?)),
                 Key::Let => Ok(Expr::Assign(Box::new(assign_let(info)?))),
