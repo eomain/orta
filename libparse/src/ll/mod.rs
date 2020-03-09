@@ -102,11 +102,15 @@ fn fun_ptr(info: &mut ParseInfo) -> PResult<DataType>
 {
     let mut v = Vec::new();
     let dtype = type_name(info)?;
-    info.next();
+    token!(Token::Arrow, info.next())?;
     if dtype != DataType::Unit {
         v.push(dtype);
         while let Some(&Token::Arrow) = info.peek() {
-            v.push(type_name(info)?);
+            let dtype = type_name(info)?;
+            if dtype == DataType::Unit {
+                return Ok(DataType::Function(v, Box::new(dtype)));
+            }
+            v.push(dtype);
             info.next();
         }
     }
