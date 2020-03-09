@@ -113,6 +113,20 @@ impl IntoToken for UnaryOperator {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogicalOperator {
+    And,
+    Or,
+    Not
+}
+
+impl IntoToken for LogicalOperator {
+    fn token(&self) -> Token
+    {
+        Token::Operator(Operator::Logical(self.clone()))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RelationalOperator {
     Eq, // equal
     Ne, // not equal
     Gt, // greater than
@@ -121,10 +135,10 @@ pub enum LogicalOperator {
     Le  // less than or equal
 }
 
-impl IntoToken for LogicalOperator {
+impl IntoToken for RelationalOperator {
     fn token(&self) -> Token
     {
-        Token::Operator(Operator::Logical(self.clone()))
+        Token::Operator(Operator::Relational(self.clone()))
     }
 }
 
@@ -150,6 +164,7 @@ pub enum Operator {
     Unary(UnaryOperator),
     Arithmetic(ArithmeticOperator),
     Logical(LogicalOperator),
+    Relational(RelationalOperator),
     Bitwise(BitwiseOperator)
 }
 
