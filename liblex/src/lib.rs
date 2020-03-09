@@ -193,6 +193,7 @@ static KEYWORDS: [(&str, Key); 14] = [
     ("false", Key::False),
     ("return", Key::Return),
     ("let", Key::Let),
+    ("var", Key::Var),
     ("type", Key::Type),
     ("foreign", Key::Foreign),
     ("extern", Key::Extern),
