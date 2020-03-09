@@ -37,9 +37,9 @@ impl Id {
     fn new() -> Self
     {
         Self {
-            lindex: 1,
-            gindex: 1,
-            llabel: 1,
+            lindex: 0,
+            gindex: 0,
+            llabel: 0,
             locals: HashMap::new()
         }
     }
@@ -56,7 +56,7 @@ impl Id {
 
     fn register(&mut self) -> Register
     {
-        let id = format!("{}", self.lindex);
+        let id = format!("r.{}", self.lindex);
         self.lindex += 1;
         Register::new(&id)
     }
@@ -78,14 +78,37 @@ impl Id {
 
     fn reset(&mut self)
     {
-        self.lindex = 1;
-        self.llabel = 1;
+        self.lindex = 0;
+        self.llabel = 0;
+    }
+}
+
+struct FunInfo {
+    entry: Option<Inst>
+}
+
+impl FunInfo {
+    fn new() -> Self
+    {
+        Self {
+            entry: None
+        }
     }
 }
 
 struct Context<'a> {
     m: &'a mut Module,
-    id: &'a mut Id
+    id: &'a mut Id,
+    info: FunInfo
+}
+
+impl<'a> Context<'a> {
+    fn new(m: &'a mut Module, id: &'a mut Id, info: FunInfo) -> Self
+    {
+        Self {
+            m, id, info
+        }
+    }
 }
 
 // Convert an AST datatype into a LLVM type
@@ -388,6 +411,7 @@ fn expr(c: &mut Context, e: &ast::Expr, v: &mut Vec<Inst>) -> Option<Vec<(Type, 
         Value(e) => value(c, e, v),
         Binary(b) => bin(c, b, v),
         If(f) => { conditional(c, f, v); None },
+        While(w) => { loop_while(c, w, v); None },
         Return(r) => ret(c, r, v),
         Assign(a) => { assign(c, a, v); None },
         Call(e) => call(c, e, v),
@@ -463,8 +487,40 @@ fn conditional(c: &mut Context, br: &ast::IfExpr, v: &mut Vec<Inst>)
     for e in &br.expr {
         expr(c, e, v);
     }
-    v.push(Inst::new(jmp.clone(), Type::Label));
+    v.push(Inst::new(jmp, Type::Label));
     v.push(Inst::new(endop, Type::Label));
+}
+
+fn loop_while(c: &mut Context, w: &ast::WhileExpr, v: &mut Vec<Inst>)
+{
+    let (_, val) = bexpr(c, &w.cond, v);
+    let (br, brop) = c.id.label();
+    let (start, sop) = c.id.label();
+    let (ends, endop) = c.id.label();
+    let op = Operation::BrCond(Register::new(&br));
+    v.push(Inst::new(op, Type::Label));
+    let op = Operation::Br(val, Register::new(&start), Register::new(&ends));
+    v.push(Inst::new(brop, Type::Label));
+    v.push(Inst::new(op, Type::Int(1)));
+    v.push(Inst::new(sop, Type::Label));
+    for e in &w.expr {
+        expr(c, e, v);
+    }
+    let back = Operation::BrCond(Register::new(&br));
+    v.push(Inst::new(back, Type::Label));
+    v.push(Inst::new(endop, Type::Label));
+}
+
+fn entry(v: &mut Vec<Inst>, o: Operation)
+{
+    if let Operation::Label(s) = v[0].get_op().clone() {
+        v.insert(0, Inst::new(o, Type::Label));
+        // TODO: label
+        let mut s = s.clone();
+        s.pop();
+        let op = Operation::BrCond(Register::new(&s));
+        v.insert(1, Inst::new(op, Type::Label));
+    }
 }
 
 // Convert an AST function into an LLVM function
@@ -489,8 +545,12 @@ fn function(c: &mut Context, func: &ast::Function) -> Function
     let mut f = Function::new(name, param, ret, None);
     let mut v = Vec::new();
 
+    let (_, eop) = c.id.label();
     for e in &func.expr {
         expr(c, e, &mut v);
+    }
+    if v.len() > 1 {
+        entry(&mut v, eop);
     }
     for inst in &v {
         f.append(inst.clone());
@@ -529,9 +589,9 @@ pub fn main(name: &str, tree: &ast::SyntaxTree) -> Module
 
     for f in &tree.functions {
         let function = {
-            let mut context = Context {
-                m: &mut module, id: &mut id
-            };
+            let mut context = Context::new(
+                &mut module, &mut id, FunInfo::new()
+            );
             function(&mut context, f)
         };
         module.append(function);

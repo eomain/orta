@@ -451,6 +451,11 @@ impl Inst {
             op, t
         }
     }
+
+    pub fn get_op(&self) -> &Operation
+    {
+        &self.op
+    }
 }
 
 impl From<Inst> for String {
