@@ -44,6 +44,13 @@ impl<'a> Env<'a> {
 pub fn init(ast: &mut SyntaxTree) -> Result<(), Error>
 {
     let mut env = Env::new();
+
+    for d in &ast.declarations {
+        let args = d.param.clone();
+        let ret = d.ret.clone();
+        env.table.insert(&d.name, (TypeInfo::Function((args, ret)), true));
+    }
+    
     for f in &ast.functions {
         let args = Vec::from(&f.param).iter().map(|a| a.1.clone()).collect();
         let ret = f.ret.clone();
