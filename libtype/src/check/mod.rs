@@ -266,13 +266,14 @@ fn bexpr(i: &mut Info, s: &mut Scope,
 fn conditional(i: &mut Info, s: &mut Scope,
                br: &mut IfExpr, expt: Option<DataType>) -> Result<(), Error>
 {
-    bexpr(i, s, &mut br.cond, Some(DataType::Boolean))?;
+    let mut s = Scope::new(Some(s));
+    bexpr(i, &mut s, &mut br.cond, Some(DataType::Boolean))?;
     for e in &mut br.expr {
-        expr(i, s, e, None)?;
+        expr(i, &mut s, e, None)?;
     }
     if let Some(exprs) = &mut br.other {
         for e in exprs {
-            expr(i, s, e, None)?;
+            expr(i, &mut s, e, None)?;
         }
     }
     Ok(())
@@ -281,9 +282,10 @@ fn conditional(i: &mut Info, s: &mut Scope,
 fn loop_while(i: &mut Info, s: &mut Scope, br: &mut WhileExpr,
               expt: Option<DataType>) -> Result<(), Error>
 {
-    bexpr(i, s, &mut br.cond, Some(DataType::Boolean))?;
+    let mut s = Scope::new(Some(s));
+    bexpr(i, &mut s, &mut br.cond, Some(DataType::Boolean))?;
     for e in &mut br.expr {
-        expr(i, s, e, None)?;
+        expr(i, &mut s, e, None)?;
     }
     Ok(())
 }
@@ -291,6 +293,9 @@ fn loop_while(i: &mut Info, s: &mut Scope, br: &mut WhileExpr,
 fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
 {
     if s.contains(&a.id) {
+        if i.get_count() == 1 {
+            return Err(Error::Custom(format!("redeclaration of variable `{}`", &a.id)));
+        }
         match s.find_var_type(&a.id) {
             Err(e) => return Err(e.into()),
             Ok(t) => a.dtype = t.clone()
@@ -315,15 +320,22 @@ fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
 #[derive(Debug, Clone, PartialEq)]
 struct Info {
     // if a second pass is needed
-    pass: bool
+    pass: bool,
+    pcount: usize
 }
 
 impl Info {
     fn new() -> Self
     {
         Self {
-            pass: false
+            pass: false,
+            pcount: 1
         }
+    }
+
+    fn get_count(&self) -> usize
+    {
+        self.pcount
     }
 
     fn pass(&mut self)
@@ -360,6 +372,7 @@ pub fn fpass(s: &mut Scope, f: &mut Function) -> Result<(), Error>
 
     fun(&mut info, s, f)?;
     if info.second_pass() {
+        info.pcount += 1;
         fun(&mut info, s, f)?;
     }
 
