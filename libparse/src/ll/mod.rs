@@ -289,12 +289,12 @@ fn cop(info: &mut ParseInfo) -> Option<ROp>
     None
 }
 
-fn expr(info: &mut ParseInfo) -> PResult<Expr>
+fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
 {
     let msg = "expected expression";
     let token = info.look()
                     .ok_or(Error::from(msg))?;
-    let mut e = match token {
+    match token {
         Token::Symbol(_) => {
             if Some(&Token::Lparen) == info.peek() {
                 Ok(Expr::Call(call(info)?))
@@ -316,8 +316,12 @@ fn expr(info: &mut ParseInfo) -> PResult<Expr>
             }
         },
         _ => Err(Error::from(msg))
-    }?;
+    }
+}
 
+fn expr(info: &mut ParseInfo) -> PResult<Expr>
+{
+    let mut e = expr_value(info)?;
     if let Some(op) = aop(info) {
         info.next();
         e = Expr::Binary(expr::bin(info, e, op)?);

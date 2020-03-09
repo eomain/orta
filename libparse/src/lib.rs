@@ -120,11 +120,11 @@ fn token_or(o: Option<&Token>, t: Token) -> PResult<&Token>
 
 mod arithmetic {
 
-    use libtoken::ArithmeticOperator;
+    use libtoken::ArithmeticOperator as AOp;
 
-    fn order(op: ArithmeticOperator) -> usize
+    fn order(op: AOp) -> usize
     {
-        use ArithmeticOperator::*;
+        use AOp::*;
 
         match op {
             Add => 2,
@@ -135,7 +135,7 @@ mod arithmetic {
         }
     }
 
-    pub fn precedence(a: ArithmeticOperator, b: ArithmeticOperator) -> bool
+    pub fn precedence(a: AOp, b: AOp) -> bool
     {
         if order(a) >= order(b) {
             true
@@ -146,7 +146,7 @@ mod arithmetic {
 
     #[test]
     fn tests() {
-        use ArithmeticOperator::*;
+        use AOp::*;
 
         assert_eq!(precedence(Add, Mul), false);
         assert_eq!(precedence(Sub, Mod), false);

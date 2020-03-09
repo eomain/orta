@@ -24,18 +24,36 @@ pub fn bexpr(info: &mut ParseInfo) -> PResult<BoolExpr>
     }
 }
 
-pub fn bin(info: &mut ParseInfo, e: Expr, op: AOp) -> PResult<BinaryExpr>
+fn bin_from(e1: Expr, e2: Expr, op: AOp) -> BinaryExpr
 {
-    let e2 = Box::new(expr(info)?);
-    let e1 = Box::new(e);
+    let mut e1 = Box::new(e1);
+    let mut e2 = Box::new(e2);
     use AOp::*;
-    Ok(match op {
+    match op {
         Add => BinaryExpr::Add(e1, e2),
         Sub => BinaryExpr::Sub(e1, e2),
         Mul => BinaryExpr::Mul(e1, e2),
         Div => BinaryExpr::Div(e1, e2),
         Mod => BinaryExpr::Mod(e1, e2)
-    })
+    }
+}
+
+pub fn bin(info: &mut ParseInfo, e: Expr, op: AOp) -> PResult<BinaryExpr>
+{
+    let mut e2 = expr_value(info)?;
+
+    if let Some(nop) = aop(info) {
+        info.next();
+        if precedence(nop, op) {
+            e2 = Expr::Binary(bin(info, e2, nop)?);
+            Ok(bin_from(e, e2, op))
+        } else {
+            let e1 = Expr::Binary(bin_from(e, e2, op));
+            Ok(bin(info, e1, nop)?)
+        }
+    } else {
+        Ok(bin_from(e, e2, op))
+    }
 }
 
 pub fn cmp(info: &mut ParseInfo, e: Expr, op: ROp) -> PResult<CompExpr>
@@ -68,8 +86,15 @@ mod tests {
     fn bin_test()
     {
         extern crate liblex;
+        {
+            let tokens = liblex::scan(r#"1 * 2 + 3"#.chars().collect()).unwrap();
 
-        let tokens = liblex::scan(r#"1 * 2 + 3"#.chars().collect()).unwrap();
+            let mut info = ParseInfo::new(tokens);
+            let expr = expr(&mut info).unwrap();
+            println!("{:?}", expr);
+        }
+
+        let tokens = liblex::scan(r#"1 * 2 / 3 % 6"#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
         let expr = expr(&mut info).unwrap();
