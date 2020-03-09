@@ -220,6 +220,7 @@ fn expr(i: &mut Info, s: &mut Scope,
         Expr::Value(v) => value(i, s, v, expt)?,
         Expr::Binary(b) => bin(i, s, b, expt)?,
         Expr::If(f) => conditional(i, s, f, expt)?,
+        Expr::While(w) => loop_while(i, s, w, expt)?,
         Expr::Assign(a) => assign(i, s, a)?,
         Expr::Call(c) => call(i, s, c, expt)?,
         _ => ()
