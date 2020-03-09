@@ -12,9 +12,10 @@ use libtoken::IntoToken;
 use libtoken::TryIntoToken;
 use libtoken::Key;
 use libtoken::Prim;
-use libtoken::ArithmeticOperator;
+use libtoken::ArithmeticOperator as AOp;
 use libtoken::LogicalOperator as LOp;
 use libtoken::UnaryOperator as UOp;
+use libtoken::BitwiseOperator as BOp;
 pub use error::Error;
 
 #[inline]
@@ -300,7 +301,7 @@ fn string(lexer: &mut Lexer) -> Result<Token, Error>
 
 fn operator(lexer: &mut Lexer, c: char) -> Token
 {
-    use ArithmeticOperator::*;
+    use AOp::*;
 
     match c {
         '+' => {
@@ -330,20 +331,35 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
                 UOp::Not.token()
             }
         },
+        '&' => {
+            //if lexer.check('&') {
+                BOp::And.token()
+            /*} else {
+                unimplemented!()
+            }*/
+        },
+        '|' => {
+            BOp::Or.token()
+        },
         '>' => {
-            if lexer.check('=') {
+            if lexer.check('>') {
+                BOp::Rshift.token()
+            } else if lexer.check('=') {
                 LOp::Ge.token()
             } else {
                 LOp::Gt.token()
             }
         },
         '<' => {
-            if lexer.check('=') {
+            if lexer.check('<') {
+                BOp::Lshift.token()
+            } else if lexer.check('=') {
                 LOp::Le.token()
             } else {
                 LOp::Lt.token()
             }
         },
+        '^' => BOp::Xor.token(),
         _ => unreachable!()
     }
 }
@@ -386,7 +402,7 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 ':' => Token::Colon,
                 ';' => Token::Semi,
                 ',' => Token::Comma,
-                '=' | '!' | '>' | '<' | '+' | '-' | '*' | '/' | '%' => {
+                '=' | '!' | '>' | '<' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' => {
                     if c == '-' && lexer.check('>') {
                         Token::Arrow
                     } else {
@@ -576,5 +592,23 @@ mod tests {
         let mut tokens = stream.iter();
 
         assert_eq!(tokens.next(), Some(&Arrow));
+    }
+
+    #[test]
+    fn bitwise()
+    {
+        use libtoken::BitwiseOperator::*;
+
+        let input = r#"
+            &|^<<>>
+        "#.chars().collect();
+        let stream = scan(input).unwrap();
+
+        let mut tokens = stream.iter();
+        assert_eq!(tokens.next(), Some(&And.token()));
+        assert_eq!(tokens.next(), Some(&Or.token()));
+        assert_eq!(tokens.next(), Some(&Xor.token()));
+        assert_eq!(tokens.next(), Some(&Lshift.token()));
+        assert_eq!(tokens.next(), Some(&Rshift.token()));
     }
 }
