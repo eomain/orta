@@ -2,8 +2,9 @@
 extern crate libsym;
 extern crate libast;
 
-mod check;
+#[macro_use]
 mod error;
+mod check;
 
 use libsym::Scope;
 use libsym::Table;
@@ -50,7 +51,7 @@ pub fn init(ast: &mut SyntaxTree) -> Result<(), Error>
         let ret = d.ret.clone();
         env.table.insert(&d.name, (TypeInfo::Function((args, ret)), true));
     }
-    
+
     for f in &ast.functions {
         let args = Vec::from(&f.param).iter().map(|a| a.1.clone()).collect();
         let ret = f.ret.clone();

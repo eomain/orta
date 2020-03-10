@@ -43,3 +43,21 @@ impl fmt::Display for Error {
         write!(f, "{}", String::from(self))
     }
 }
+
+macro_rules! error {
+    ($x: expr) => {
+        Error::Custom($x.into())
+    };
+    ($x: expr, $($y: expr), *) => {
+        Error::Custom(format!($x $(, $y)*))
+    };
+}
+
+macro_rules! suberror {
+    ($s: expr, $x: expr) => {
+        Error::SubError($x.into(), Box::new($s))
+    };
+    ($s: expr, $x: expr, $($y: expr), *) => {
+        Error::SubError(format!($x $(, $y)*), Box::new($s))
+    };
+}

@@ -55,21 +55,22 @@ fn convertable(a: &DataType, b: &DataType) -> bool
     use FloatType::*;
     match a {
         DataType::Integer(a) => {
-            if let DataType::Integer(b) = *b {
-                match a {
-                    S8  => b == S8 || b == U8,
-                    S16 => b == S8 || b == S16 || b == U8 || b == U16,
-                    S32 => b == S8 || b == S16 || b == S32 || b == U8 || b == U16 || b == U32,
-                    S64 => b == S8 || b == S16 || b == S32 || b == S64 ||
-                           b == U8 || b == U16 || b == U32 || b == U64,
-                    U8  => b == U8 || b == S8,
-                    U16 => b == U8 || b == U16 || b == S8 || b == S16,
-                    U32 => b == U8 || b == U16 || b == U32 || b == S8 || b == S16 || b == S32,
-                    U64 => b == U8 || b == U16 || b == U32 || b == U64 ||
-                           b == S8 || b == S16 || b == S32 || b == S64
-                }
-            } else {
-                false
+            match *b {
+                DataType::Integer(b) => {
+                    match a {
+                        S8  => b == S8 || b == U8,
+                        S16 => b == S8 || b == S16 || b == U8 || b == U16,
+                        S32 => b == S8 || b == S16 || b == S32 || b == U8 || b == U16 || b == U32,
+                        S64 => b == S8 || b == S16 || b == S32 || b == S64 ||
+                               b == U8 || b == U16 || b == U32 || b == U64,
+                        U8  => b == U8 || b == S8,
+                        U16 => b == U8 || b == U16 || b == S8 || b == S16,
+                        U32 => b == U8 || b == U16 || b == U32 || b == S8 || b == S16 || b == S32,
+                        U64 => b == U8 || b == U16 || b == U32 || b == U64 ||
+                               b == S8 || b == S16 || b == S32 || b == S64
+                    }
+                },
+                _ => false
             }
         },
         DataType::Float(a) => {
@@ -82,6 +83,12 @@ fn convertable(a: &DataType, b: &DataType) -> bool
                 false
             }
         },
+        DataType::Pointer(_) => {
+            match *b {
+                DataType::Integer(_) => true,
+                _ => false
+            }
+        }
         _ => false
     }
 }
@@ -158,18 +165,16 @@ fn call(info: &mut Info, s: &mut Scope,
                 }
                 (v.clone(), (**r).clone())
             } else {
-                return Err(Error::Custom("not a function!".into()));
+                return Err(error!("not a function!"));
             }
         }
     };
 
     let (a, b) = (args.len(), c.args.len());
     if a != b {
-        return Err(Error::Custom(
-            format!(
-                "incorrect number of positional arguments\n  found: {}\n  expected {}",
-                b, a
-            )
+        return Err(error!(
+            "incorrect number of positional arguments\n  found: {}\n  expected {}",
+            b, a
         ));
     }
 
@@ -177,12 +182,10 @@ fn call(info: &mut Info, s: &mut Scope,
     c.rtype = ret;
     for arg in &mut c.args {
         if let Err(e) = expr(info, s, arg, Some(args[i].clone())) {
-            return Err(Error::SubError(
-                format!(
-                    "argument type error\n  invoked function: {}\n  positional argument: {}\n",
-                    &c.name, (i + 1)
-                ),Box::new(e))
-            );
+            return Err(suberror!(e,
+                "argument type error\n  invoked function: {}\n  positional argument: {}\n",
+                &c.name, (i + 1)
+            ));
         }
         i += 1;
     }
@@ -192,6 +195,7 @@ fn call(info: &mut Info, s: &mut Scope,
 fn bin(i: &mut Info, s: &mut Scope,
          b: &mut BinaryExpr, expt: Option<DataType>) -> Result<(), Error>
 {
+    use DataType::*;
     use BinaryExpr::*;
     match b {
         Add(a, b) |
@@ -202,11 +206,18 @@ fn bin(i: &mut Info, s: &mut Scope,
             expr(i, s, a, expt.clone())?;
             expr(i, s, b, expt)?;
             let (at, bt) = (a.get_type(), b.get_type());
-            if at != bt {
-                let sub = Box::new(type_error(bt, at));
-                return Err(Error::SubError(format!(
-                    "binary operation error\n"
-                ), sub));
+
+            match (at, bt) {
+                (Integer(_), Integer(_)) |
+                (Float(_), Float(_)) => {
+                    if at != bt {
+                        let e = type_error(bt, at);
+                        return Err(suberror!(e, "binary operation error\n"));
+                    }
+                },
+                _ => return Err(error!(
+                    "cannot perform binary operation on types `{}` and `{}`", at, bt
+                ))
             }
         }
     }
@@ -233,19 +244,15 @@ fn ret(i: &mut Info, s: &mut Scope, r: &mut Return,
 {
     if let Some(e) = &mut r.expr {
         if let Err(e) = expr(i, s, &mut *e, Some(expt.clone())) {
-            let sub = Box::new(e);
-            return Err(Error::SubError(format!(
-                "return type error\n  from function: {}\n", name
-            ), sub));
+            return Err(suberror!(e, "return type error\n  from function: {}\n", name));
         }
         if *e.get_type() == expt {
             r.dtype = expt;
         } else {
-            let msg = format!(
+            return Err(error!(
                 "return type in function: {}\n  found: type {}\n  expected: type {}",
                 name, e.get_type(), expt
-            );
-            return Err(Error::Custom(msg));
+            ));
         }
     } else {
         r.dtype = DataType::Unit;
@@ -294,7 +301,7 @@ fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
 {
     if s.contains(&a.id) {
         if i.get_count() == 1 {
-            return Err(Error::Custom(format!("redeclaration of variable `{}`", &a.id)));
+            return Err(error!("redeclaration of variable `{}`", &a.id));
         }
         match s.find_var_type(&a.id) {
             Err(e) => return Err(e.into()),
