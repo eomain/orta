@@ -163,6 +163,10 @@ fn type_cast(dtype: &ast::DataType) -> Type
             // to the function
             Type::Pointer(Box::new(f))
         },
+        Pointer(p) => {
+            let t = Box::new(type_cast(p));
+            Type::Pointer(t)
+        },
         Unset => unreachable!(),
         _ => unimplemented!()
     }
@@ -197,7 +201,17 @@ fn literal(c: &mut Context, l: &ast::Literal,
     use ast::Literal::*;
     match l {
         Signed(i) => (type_cast(t), Value::Int(*i)),
-        Unsigned(u) => (type_cast(t), Value::Uint(*u)),
+        Unsigned(u) => {
+            if let ast::DataType::Pointer(t) = t {
+                let id = c.id.register();
+                let t = type_cast(t);
+                let op = Operation::IntoToPtr(id.clone(), Value::Uint(*u), t.clone());
+                v.push(Inst::new(op, Type::Int(64)));
+                (Type::Pointer(Box::new(t)), Value::Reg(id))
+            } else {
+                (type_cast(t), Value::Uint(*u))
+            }
+        },
         Float(f) => (type_cast(t), Value::Float(*f)),
         String(s) => {
             let id = c.id.register();
@@ -477,6 +491,14 @@ fn expr(c: &mut Context, e: &ast::Expr, v: &mut Vec<Inst>) -> Option<Vec<(Type, 
     }
 }
 
+fn assign_ptr(c: &mut Context, t: Type, val: Value, v: &mut Vec<Inst>) -> Value
+{
+    let reg = c.id.register();
+    let ptr = Operation::IntoToPtr(reg.clone(), val, t.clone());
+    v.push(Inst::new(ptr, Type::Int(64)));
+    Value::Reg(reg)
+}
+
 fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
 {
     let l = c.id.local(&a.id);
@@ -484,10 +506,18 @@ fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
 
     if let Some(expr) = expr(c, &a.expr, v) {
         let (t, val) = &expr[0];
+        let mut val = val.clone();
         let r = Rc::new(Register::from(&l));
         let alloc = Operation::Alloca(r.clone(), None);
-        let store = Operation::Store(val.clone(), t.clone(), r.clone());
         v.push(Inst::new(alloc, t.clone()));
+        if let Type::Pointer(t) = t {
+            match val {
+                Value::Int(_) |
+                Value::Uint(_) => { val = assign_ptr(c, *t.clone(), val.clone(), v); },
+                _ => ()
+            }
+        }
+        let store = Operation::Store(val.clone(), t.clone(), r.clone());
         v.push(Inst::new(store, t.clone()));
         c.id.insert((*r).as_ref(), VarType::Ref);
     } else {

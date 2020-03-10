@@ -347,6 +347,7 @@ pub enum Operation {
     Frem(Register, Value, Value),
     Udiv(Register, Value, Value),
     Urem(Register, Value, Value),
+    IntoToPtr(Register, Value, Type),
     Label(String)
 }
 
@@ -375,6 +376,7 @@ impl Operation {
             Frem(_, _, _) => "frem",
             Udiv(_, _, _) => "udiv",
             Urem(_, _, _) => "urem",
+            IntoToPtr(_, _, _) => "inttoptr",
             Label(s) => &s
         }
     }
@@ -428,7 +430,10 @@ impl Operation {
             GetElPtr(_, ptr, indexes) => {
                 let p = param_val(indexes);
                 Some(format!(", {} {}, {}", ptr.0, ptr.1.id, p))
-            }
+            },
+            IntoToPtr(_, v, t) => {
+                Some(format!("{} to {}*", v, t))
+            },
             _ => None
         }
     }
@@ -453,6 +458,7 @@ impl Operation {
             Call(r, _, _) => if let Some(r) = r { Some(r.id.clone()) } else { None },
             Load(r, _, _) => Some(r.id.clone()),
             GetElPtr(r, _, _) => Some(r.id.clone()),
+            IntoToPtr(r, _, _) => Some(r.id.clone()),
             _ => None
         }
     }
