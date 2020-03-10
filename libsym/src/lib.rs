@@ -98,6 +98,14 @@ impl<'a> Scope<'a> {
         }
     }
 
+    pub fn is_final(&self, id: &str) -> Result<bool, Error>
+    {
+        match self.find(id) {
+            None => Err(Error::Undefined(id.into())),
+            Some(t) => Ok(t.1)
+        }
+    }
+
     pub fn find_type(&self, id: &str) -> Result<(DataType, bool), Error>
     {
         match self.find(id) {
