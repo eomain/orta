@@ -5,17 +5,20 @@ mod fun;
 mod iter;
 mod meta;
 
+use std::rc::Rc;
 use super::arithmetic::precedence;
 use super::Error;
 use super::PResult;
 use super::ParseInfo;
 use libtoken::Token;
+use libtoken::IntoToken;
 use libtoken::Key;
 use libtoken::Prim;
 use libtoken::Operator;
 use libtoken::ArithmeticOperator as AOp;
 use libtoken::LogicalOperator as LOp;
 use libtoken::RelationalOperator as ROp;
+use libtoken::BitwiseOperator as BOp;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
@@ -149,13 +152,30 @@ fn fun_ptr_test()
 // Transforms token into the respective data type
 fn types(info: &mut ParseInfo) -> PResult<DataType>
 {
-    match (info.look(), info.peek()) {
-        (_, Some(&Token::Arrow)) => Ok(fun_ptr(info)?),
-        (Some(&Token::Lparen), Some(&Token::Rparen)) => {
-            Ok(fun_ptr(info)?)
-        },
-        _ => Ok(type_name(info)?)
+    use Operator::*;
+    let mut pcount = 0;
+    while let Some(&Token::Operator(Bitwise(Xor))) = info.look() {
+        pcount += 1;
+        info.next();
     }
+
+    let mut dtype = match (info.look(), info.peek()) {
+        (_, Some(&Token::Arrow)) => fun_ptr(info)?,
+        (Some(&Token::Lparen), Some(&Token::Rparen)) => {
+            fun_ptr(info)?
+        },
+        _ => type_name(info)?
+    };
+
+    if pcount > 0 {
+        let mut p = DataType::Pointer(Rc::new(dtype));
+        for i in 1..pcount {
+            p = DataType::Pointer(Rc::new(p));
+        }
+        dtype = p;
+    }
+
+    Ok(dtype)
 }
 
 // Obtains a value from a variable or literal
