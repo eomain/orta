@@ -124,6 +124,13 @@ impl fmt::Display for DataType {
                 }
                 return write!(f, "{}", *r);
             },
+            DataType::Pointer(d) => {
+                if let DataType::Function(_, _) = **d {
+                    return write!(f, "^({})", *d);
+                } else {
+                    return write!(f, "^{}", *d);
+                }
+            },
             _ => unimplemented!()
         })
     }
