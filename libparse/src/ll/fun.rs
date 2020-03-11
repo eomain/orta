@@ -109,6 +109,32 @@ pub fn foreign(info: &mut ParseInfo) -> PResult<FunctionDec>
     Ok(FunctionDec::new(&name, param, rtype))
 }
 
+// Parse an external function declaration
+pub fn foreign_block(info: &mut ParseInfo) -> PResult<Vec<FunctionDec>>
+{
+    token!(Token::Keyword(Key::Foreign), info.next())?;
+    token!(Token::Lbrace, info.next())?;
+
+    let mut decs = Vec::new();
+    {
+        while let Some(Token::Keyword(Key::Fun)) = info.look() {
+            token!(Key::Fun.token(), info.next())?;
+
+            let name = id(info)?;
+            let param = params_dec(info)?;
+            let rtype = rtype(info)?;
+
+            token!(Token::Semi, info.next())?;
+
+            let d = FunctionDec::new(&name, param, rtype);
+            decs.push(d);
+        }
+    }
+
+    token!(Token::Rbrace, info.next())?;
+    Ok(decs)
+}
+
 #[cfg(test)]
 mod tests {
     extern crate liblex;
@@ -148,5 +174,21 @@ mod tests {
         let f = foreign(&mut info).unwrap();
         assert_eq!("add", &f.name);
         assert_eq!(Integer(S64), f.ret);
+    }
+
+    #[test]
+    fn dec_block()
+    {
+        let tokens = liblex::scan(r#"
+            foreign {
+                fun run(() -> ()): bool;
+                fun add(int, int): int;
+                fun main();
+            }
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let f = foreign_block(&mut info).unwrap();
+        println!("{:?}", f);
     }
 }

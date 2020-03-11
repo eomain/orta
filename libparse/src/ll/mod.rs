@@ -423,8 +423,15 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                         tree.append_rec(s);
                     },
                     Key::Foreign => {
-                        let f = fun::foreign(info)?;
-                        tree.append_dec(f);
+                        if let Some(Token::Lbrace) = info.peek() {
+                            let mut decs = fun::foreign_block(info)?;
+                            while decs.len() > 0 {
+                                tree.append_dec(decs.remove(0))
+                            }
+                        } else {
+                            let dec = fun::foreign(info)?;
+                            tree.append_dec(dec);
+                        }
                     },
                     _ => unimplemented!()
                 }
