@@ -98,11 +98,26 @@ impl<'a> Scope<'a> {
         }
     }
 
-    pub fn is_final(&self, id: &str) -> Result<bool, Error>
+    pub fn is_final(&self, id: &str) -> bool
+    {
+        match self.find(id) {
+            None => false,
+            Some(t) => t.1
+        }
+    }
+
+    pub fn get_type(&self, id: &str) -> Result<DataType, Error>
     {
         match self.find(id) {
             None => Err(Error::Undefined(id.into())),
-            Some(t) => Ok(t.1)
+            Some(t) => {
+                match &t.0 {
+                    TypeInfo::Var(dt) => Ok(dt.clone()),
+                    TypeInfo::Function((v, r)) => {
+                        Ok(DataType::Function(v.clone(), Box::new(r.clone())))
+                    }
+                }
+            }
         }
     }
 
