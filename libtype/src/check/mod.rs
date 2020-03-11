@@ -187,6 +187,10 @@ fn call(info: &mut Info, s: &mut Scope,
                 &c.name, (i + 1)
             ));
         }
+        let (found, expt) = (arg.get_type(), &args[i]);
+        if found != expt {
+            return Err(type_error(found, expt));
+        }
         i += 1;
     }
     Ok(())
@@ -309,15 +313,26 @@ fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
         }
     }
 
-    let expt = if a.dtype != DataType::Unset {
-        Some(a.dtype.clone())
+    let expt = if s.is_final(&a.id) {
+        Some(s.get_type(&a.id).unwrap())
     } else {
-        None
+        if a.dtype != DataType::Unset {
+            Some(a.dtype.clone())
+        } else {
+            None
+        }
     };
 
     let f = expt.is_some();
 
-    expr(i, s, &mut a.expr, expt)?;
+    expr(i, s, &mut a.expr, expt.clone())?;
+
+    if f {
+        let (found, expt) = (a.expr.get_type(), &expt.unwrap());
+        if found != expt {
+            return Err(type_error(found, expt));
+        }
+    }
 
     a.dtype = a.expr.get_type().clone();
     s.insert_var(&a.id, a.dtype.clone(), f);
