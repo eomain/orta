@@ -117,7 +117,7 @@ pub fn foreign_block(info: &mut ParseInfo) -> PResult<Vec<FunctionDec>>
 
     let mut decs = Vec::new();
     {
-        while let Some(Token::Keyword(Key::Fun)) = info.look() {
+        while Some(&Token::Rbrace) != info.look() {
             token!(Key::Fun.token(), info.next())?;
 
             let name = id(info)?;
