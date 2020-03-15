@@ -10,7 +10,7 @@ use libast::Typed;
 use libast::DataType;
 use libast::IntType;
 use libast::FloatType;
-use libast::Literal;
+use libast::{Literal, Variable};
 use libast::Value;
 use libast::{Assign, Return};
 use libast::{
@@ -19,6 +19,14 @@ use libast::{
     CompExpr, LogicalExpr
 };
 use libast::Function;
+
+fn type_equal<T>(a: &T, b: &T) -> bool
+    where T: Typed
+{
+    let (a, b) = (a.get_type(), b.get_type());
+    let (a, b) = (a.derived(), b.derived());
+    a == b
+}
 
 fn literal(s: &mut Scope, l: &Literal) -> DataType
 {
@@ -62,10 +70,29 @@ fn literal(s: &mut Scope, l: &Literal) -> DataType
     }
 }
 
+fn named<'a>(s: &'a Scope, t: &'a DataType) -> &'a DataType
+{
+    if let DataType::Named(name) = t {
+        match s.find_named_type(name) {
+            Err(_) => t,
+            Ok(d) => d
+        }
+    } else {
+        t
+    }
+}
+
 fn convertable(a: &DataType, b: &DataType) -> bool
 {
     use IntType::*;
     use FloatType::*;
+
+    if (a == b) {
+        return true;
+    }
+
+    let (a, b) = (a.derived(), b.derived());
+
     match a {
         DataType::Integer(a) => {
             match *b {
@@ -108,9 +135,33 @@ fn convertable(a: &DataType, b: &DataType) -> bool
 
 fn type_error(f: &DataType, e: &DataType) -> Error
 {
-    Error::Custom(
-        format!("type error\n found: {}\n expected: {}", f, e)
-    )
+    error!("type error\n found: {}\n expected: {}", f, e)
+}
+
+fn variable(i: &mut Info, s: &mut Scope,
+            v: &mut Variable, expt: Option<DataType>) -> Result<(), Error>
+{
+    match s.find_type(&v.name) {
+        Err(e) => return Err(e.into()),
+        Ok((dtype, fin)) => {
+            if let Some(expt) = expt {
+                if dtype != expt && dtype != DataType::Unset && fin {
+                    return Err(type_error(&dtype, &expt));
+                }
+
+                if !dtype.function() {
+                    if (dtype == expt || (!expt.unique() && convertable(&expt, &dtype))) {
+                        v.dtype = expt.clone();
+                        s.insert_var(&v.name, expt.clone(), false);
+                        i.pass();
+                        return Ok(());
+                    }
+                }
+            }
+            v.dtype = dtype.clone();
+        }
+    }
+    Ok(())
 }
 
 fn value(i: &mut Info, s: &mut Scope,
@@ -134,30 +185,7 @@ fn value(i: &mut Info, s: &mut Scope,
                 Value::Literal(l, lit)
             }
         },
-        Value::Variable(v) => {
-            match s.find_type(&v.name) {
-                Err(e) => return Err(e.into()),
-                Ok((t, f)) => {
-                    if let Some(expt) = expt {
-                        if t != expt && t != DataType::Unset && f {
-                            return Err(type_error(&t, &expt));
-                        } else {
-                            v.dtype = t.clone();
-                        }
-                        if convertable(&expt, &t) {
-                            v.dtype = expt.clone();
-                            s.insert_var(&v.name, expt.clone(), false);
-                            i.pass();
-                        } else {
-                            // TODO: error
-                        }
-                    } else {
-                        v.dtype = t.clone();
-                    }
-                }
-            }
-            return Ok(());
-        }
+        Value::Variable(v) => return variable(i, s, v, expt)
     };
     Ok(())
 }
@@ -222,18 +250,18 @@ fn bin(i: &mut Info, s: &mut Scope,
         Mod(a, b) => {
             expr(i, s, a, expt.clone())?;
             expr(i, s, b, expt)?;
-            let (at, bt) = (a.get_type(), b.get_type());
+            let (a, b) = (a.get_type(), b.get_type());
+            let (a, b) = (a.derived(), b.derived());
 
-            match (at, bt) {
+            match (a, b) {
                 (Integer(_), Integer(_)) |
                 (Float(_), Float(_)) => {
-                    if at != bt {
-                        let e = type_error(bt, at);
-                        return Err(suberror!(e, "binary operation error\n"));
+                    if a != b {
+                        return Err(suberror!(type_error(b, a), "arithmetic operation error\n"));
                     }
                 },
                 _ => return Err(error!(
-                    "cannot perform binary operation on types `{}` and `{}`", at, bt
+                    "cannot perform arithmetic on types `{}` and `{}`", a, b
                 ))
             }
         }
@@ -255,20 +283,12 @@ fn cmp(i: &mut Info, s: &mut Scope,
         Le(a, b) => {
             expr(i, s, a, None)?;
             expr(i, s, b, Some(a.get_type().clone()))?;
-            let (at, bt) = (a.get_type(), b.get_type());
 
-            match (at, bt) {
-                (Integer(_), Integer(_)) |
-                (Float(_), Float(_)) |
-                (Boolean, Boolean) => {
-                    if at != bt {
-                        let e = type_error(bt, at);
-                        return Err(suberror!(e, "relational operation error\n"));
-                    }
-                },
-                _ => return Err(error!(
-                    "cannot perform comparison operation on types `{}` and `{}`", at, bt
-                ))
+            if type_equal(&**a, &**b) {
+                return Ok(())
+            } else {
+                let (a, b) = (a.get_type(), b.get_type());
+                return Err(error!("cannot compare types `{}` and `{}`", a, b))
             }
         }
     }
@@ -384,7 +404,7 @@ fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
         Some(s.get_type(&a.id).unwrap())
     } else {
         if a.dtype != DataType::Unset {
-            Some(a.dtype.clone())
+            Some(named(s, &a.dtype).clone())
         } else {
             None
         }
