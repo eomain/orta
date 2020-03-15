@@ -13,7 +13,13 @@ use clap::SubCommand as Command;
 
 fn build(source: &str, output: &str, format: OutputFormat)
 {
-    let input = InputStream::from(source);
+    let input = match InputStream::from(source) {
+        Err(e) => {
+            eprintln!("error: {}: {}", source, e);
+            return;
+        },
+        Ok(i) => i
+    };
     let status = BuildCommand::default(input)
                               .output(output)
                               .format(format)
