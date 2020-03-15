@@ -58,7 +58,7 @@ pub fn bin(info: &mut ParseInfo, e: Expr, op: AOp) -> PResult<BinaryExpr>
 
 pub fn cmp(info: &mut ParseInfo, e: Expr, op: ROp) -> PResult<CompExpr>
 {
-    let e2 = Box::new(expr(info)?);
+    let e2 = Box::new(cexpr(info)?);
     let e1 = Box::new(e);
     use ROp::*;
     Ok(match op {
@@ -68,6 +68,18 @@ pub fn cmp(info: &mut ParseInfo, e: Expr, op: ROp) -> PResult<CompExpr>
         Lt => CompExpr::Lt(e1, e2),
         Ge => CompExpr::Ge(e1, e2),
         Le => CompExpr::Le(e1, e2)
+    })
+}
+
+pub fn log(info: &mut ParseInfo, e: Expr, op: LOp) -> PResult<LogicalExpr>
+{
+    let e2 = Box::new(expr(info)?);
+    let e1 = Box::new(e);
+    use LOp::*;
+    Ok(match op {
+        And => LogicalExpr::And(e1, e2),
+        Or => LogicalExpr::Or(e1, e2),
+        _ => unreachable!()
     })
 }
 
@@ -107,6 +119,18 @@ mod tests {
         extern crate liblex;
 
         let tokens = liblex::scan(r#"1 == 1"#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let expr = expr(&mut info).unwrap();
+        println!("{:?}", expr);
+    }
+
+    #[test]
+    fn log_test()
+    {
+        extern crate liblex;
+
+        let tokens = liblex::scan(r#"1 == 1 && true != false"#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
         let expr = expr(&mut info).unwrap();
