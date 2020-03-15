@@ -536,6 +536,9 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                             tree.append_dec(dec);
                         }
                     },
+                    Key::Unique => {
+                        let unique = meta::unique(info)?;
+                    },
                     // TODO: error
                     _ => unimplemented!()
                 }
