@@ -17,6 +17,7 @@ pub enum Error {
     Undefined(String),
     NotFunction(String),
     NotVariable(String),
+    NotNamed(String),
     Custom(String)
 }
 
@@ -29,6 +30,7 @@ impl From<&Error> for String {
             Undefined(s) => format!("undefined symbol '{}'", s),
             NotFunction(s) => format!("symbol {} is not a function", s),
             NotVariable(s) => format!("symbol {} is not a variable", s),
+            NotNamed(s) => format!("symbol {} is not a named type", s),
             Custom(s) => s.clone()
         }
     }
@@ -38,7 +40,8 @@ impl From<&Error> for String {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeInfo {
     Var(DataType),
-    Function(Signature)
+    Function(Signature),
+    Named(DataType)
 }
 
 impl TypeInfo {
@@ -112,7 +115,7 @@ impl<'a> Scope<'a> {
             None => Err(Error::Undefined(id.into())),
             Some(t) => {
                 match &t.0 {
-                    TypeInfo::Var(dt) => Ok(dt.clone()),
+                    TypeInfo::Var(dt) | TypeInfo::Named(dt) => Ok(dt.clone()),
                     TypeInfo::Function((v, r)) => {
                         Ok(DataType::Function(v.clone(), Box::new(r.clone())))
                     }
@@ -127,7 +130,7 @@ impl<'a> Scope<'a> {
             None => Err(Error::Undefined(id.into())),
             Some(t) => {
                 match &t.0 {
-                    TypeInfo::Var(dt) => Ok((dt.clone(), t.1)),
+                    TypeInfo::Var(dt) | TypeInfo::Named(dt) => Ok((dt.clone(), t.1)),
                     TypeInfo::Function((v, r)) => {
                         Ok((DataType::Function(v.clone(), Box::new(r.clone())), t.1))
                     }
@@ -145,6 +148,20 @@ impl<'a> Scope<'a> {
                     Ok((dt.clone(), t.1))
                 } else {
                     Err(Error::NotVariable(id.into()))
+                }
+            }
+        }
+    }
+
+    pub fn find_named_type(&self, id: &str) -> Result<&DataType, Error>
+    {
+        match self.find(id) {
+            None => Err(Error::Undefined(id.into())),
+            Some((t, _)) => {
+                if let TypeInfo::Named(t) = t {
+                    Ok(&t)
+                } else {
+                    Err(Error::NotNamed(id.into()))
                 }
             }
         }
