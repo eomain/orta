@@ -18,7 +18,7 @@ pub fn loop_while(info: &mut ParseInfo) -> PResult<WhileExpr>
     let cond = bexpr(info)?;
     token!(Token::Rparen, info.next())?;
 
-    let expr = exprs(info)?;
+    let expr = block_exprs(info)?;
     Ok(WhileExpr::new(cond, expr))
 }
 

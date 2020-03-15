@@ -18,7 +18,7 @@ pub fn conditional(info: &mut ParseInfo) -> PResult<IfExpr>
     let cond = bexpr(info)?;
     token!(Token::Rparen, info.next())?;
 
-    let expr = exprs(info)?;
+    let expr = block_exprs(info)?;
     let other = other(info)?;
     Ok(IfExpr::new(cond, expr, other))
 }
@@ -28,7 +28,7 @@ fn other(info: &mut ParseInfo) -> PResult<Option<ExprList>>
     if !token_is!(Token::Keyword(Key::Else), info) {
         return Ok(None);
     }
-    Ok(Some(exprs(info)?))
+    Ok(Some(block_exprs(info)?))
 }
 
 #[cfg(test)]
