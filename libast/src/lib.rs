@@ -20,6 +20,17 @@ pub enum IntType {
     S64
 }
 
+impl IntType {
+    pub fn signed(&self) -> bool
+    {
+        use IntType::*;
+        match self {
+            U8 | U16 | U32 | U64 => false,
+            S8 | S16 | S32 | S64 => true
+        }
+    }
+}
+
 impl From<&IntType> for &str {
     fn from(t: &IntType) -> Self
     {
@@ -101,7 +112,8 @@ pub enum DataType {
     Record(Rc<DataRecord>),
     //Record(String),
     Function(Vec<DataType>, Box<DataType>),
-    Pointer(Rc<DataType>)
+    Pointer(Rc<DataType>),
+    Types(String, Box<DataType>)
 }
 
 impl fmt::Display for DataType {
@@ -131,6 +143,9 @@ impl fmt::Display for DataType {
                     return write!(f, "^{}", *d);
                 }
             },
+            DataType::Types(s, d) => {
+                return write!(f, "{}", s);
+            },
             _ => unimplemented!()
         })
     }
@@ -141,6 +156,15 @@ impl DataType {
     fn compat() -> bool
     {
         unimplemented!()
+    }
+
+    #[inline]
+    pub fn derived(&self) -> &DataType
+    {
+        match self {
+            DataType::Types(s, d) => &*d,
+            _ => &self,
+        }
     }
 }
 
@@ -191,6 +215,29 @@ impl Typed for Value {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Cast {
+    pub expr: Box<Expr>,
+    pub dtype: DataType
+}
+
+impl Cast {
+    pub fn new(expr: Expr, dtype: DataType) -> Self
+    {
+        Self {
+            expr: Box::new(expr),
+            dtype
+        }
+    }
+}
+
+impl Typed for Cast {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
+    }
+}
+
 /// An expression that evaluates to a value
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -202,7 +249,8 @@ pub enum Expr {
     While(WhileExpr),
     Return(Return),
     Assign(Box<Assign>),
-    Call(CallExpr)
+    Call(CallExpr),
+    Cast(Cast)
 }
 
 impl Typed for Expr {
@@ -211,8 +259,11 @@ impl Typed for Expr {
         match self {
             Expr::Value(v) => v.get_type(),
             Expr::Binary(b) => b.get_type(),
+            Expr::Comp(c) => c.get_type(),
+            Expr::Logical(l) => l.get_type(),
             Expr::Return(r) => r.get_type(),
             Expr::Call(c) => c.get_type(),
+            Expr::Cast(c) => c.get_type(),
             _ => unimplemented!()
         }
     }
@@ -269,7 +320,19 @@ impl Typed for BinaryExpr {
 pub enum LogicalExpr {
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
-    Not(Box<Expr>, Box<Expr>)
+    Not(Box<Expr>)
+}
+
+impl Typed for LogicalExpr {
+    fn get_type(&self) -> &DataType
+    {
+        use LogicalExpr::*;
+        match self {
+            And(e1, _) |
+            Or(e1, _) |
+            Not(e1) => e1.get_type()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -280,6 +343,21 @@ pub enum CompExpr {
     Lt(Box<Expr>, Box<Expr>),
     Ge(Box<Expr>, Box<Expr>),
     Le(Box<Expr>, Box<Expr>)
+}
+
+impl Typed for CompExpr {
+    fn get_type(&self) -> &DataType
+    {
+        use CompExpr::*;
+        match self {
+            Eq(e1, _) |
+            Ne(e1, _) |
+            Gt(e1, _) |
+            Lt(e1, _) |
+            Ge(e1, _) |
+            Le(e1, _) => e1.get_type()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -460,20 +538,27 @@ impl From<&ParamList> for Vec<(String, DataType)> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionProp {
     // if the function is pure
-    pub pure: bool
+    pub pure: bool,
+    pub external: bool
 }
 
 impl FunctionProp {
     pub fn default() -> Self
     {
         Self {
-            pure: false
+            pure: false,
+            external: false
         }
     }
 
     pub fn pure(&mut self)
     {
         self.pure = true;
+    }
+
+    pub fn external(&mut self)
+    {
+        self.external = true;
     }
 }
 
