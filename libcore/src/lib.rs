@@ -20,7 +20,7 @@ pub use libgen::CodeGen;
 
 #[derive(Debug)]
 pub enum InputStream {
-    File(io::Result<fs::File>)
+    File(fs::File)
 }
 
 impl InputStream {
@@ -28,16 +28,14 @@ impl InputStream {
     {
         use InputStream::*;
         match self {
-            File(f) => f.is_ok()
+            File(f) => true
         }
     }
-}
 
-impl<P> From<P> for InputStream
-    where P: AsRef<Path> {
-    fn from(p: P) -> InputStream
+    pub fn from<P>(p: P) -> Result<Self, io::Error>
+        where P: AsRef<Path>
     {
-        InputStream::File(fs::File::open(p))
+        Ok(InputStream::File(fs::File::open(p)?))
     }
 }
 
@@ -46,11 +44,7 @@ impl Read for InputStream {
     {
         use InputStream::*;
         match self {
-            File(f) => if let Ok(f) = f {
-                f.read(b)
-            } else {
-                unreachable!()
-            }
+            File(f) => f.read(b)
         }
     }
 }
@@ -306,11 +300,12 @@ impl BuildCommand {
     fn libs(&mut self, s: &mut String)
     {
         match self.format {
-            OutputFormat::IR(_) => (),
-            _ => {
+            //OutputFormat::IR(_) => (),
+            OutputFormat::BIN => {
                 s.push('\n');
                 s.push_str(RTLIB);
-            }
+            },
+            _ => ()
         }
     }
 
@@ -393,7 +388,7 @@ mod tests {
     fn ir_test()
     {
         let path = "tests/test";
-        let input = InputStream::from(path);
+        let input = InputStream::from(path).unwrap();
         let status = BuildCommand::default(input)
                                   .ir(CodeGen::LLVM)
                                   .output("out.ll")
@@ -407,7 +402,7 @@ mod tests {
     fn asm_test()
     {
         let path = "tests/test";
-        let input = InputStream::from(path);
+        let input = InputStream::from(path).unwrap();
         let status = BuildCommand::default(input)
                                   .asm()
                                   .output("out.s")
@@ -418,7 +413,7 @@ mod tests {
     fn obj_test()
     {
         let path = "tests/test";
-        let input = InputStream::from(path);
+        let input = InputStream::from(path).unwrap();
         let status = BuildCommand::default(input)
                                   .obj()
                                   .output("out.o")
