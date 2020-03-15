@@ -183,7 +183,7 @@ fn ident(lexer: &mut Lexer) -> Token
     lexer.string.token()
 }
 
-static KEYWORDS: [(&str, Key); 17] = [
+static KEYWORDS: [(&str, Key); 18] = [
     ("fun", Key::Fun),
     ("pure", Key::Pure),
     ("if", Key::If),
@@ -200,7 +200,8 @@ static KEYWORDS: [(&str, Key); 17] = [
     ("extern", Key::Extern),
     ("break", Key::Break),
     ("unsafe", Key::Unsafe),
-    ("unique", Key::Unique)
+    ("unique", Key::Unique),
+    ("define", Key::Define)
 ];
 
 static KEYWORDS_PRIM: [(&str, Prim); 15] = [
@@ -411,6 +412,7 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 ':' => Token::Colon,
                 ';' => Token::Semi,
                 ',' => Token::Comma,
+                '@' => Token::At,
                 '=' | '!' | '>' | '<' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '~' => {
                     if c == '-' && lexer.check('>') {
                         Token::Arrow
