@@ -97,6 +97,52 @@ impl From<&DataRecord> for Tuple {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Types {
+    pub name: String,
+    pub dtype: Box<DataType>
+}
+
+impl Types {
+    pub fn new(name: &str, dtype: DataType) -> Self
+    {
+        Self {
+            name: name.into(),
+            dtype: Box::new(dtype)
+        }
+    }
+}
+
+impl fmt::Display for Types {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "{}", &self.name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Unique {
+    pub name: String,
+    pub dtype: Box<DataType>
+}
+
+impl Unique {
+    pub fn new(name: &str, dtype: DataType) -> Self
+    {
+        Self {
+            name: name.into(),
+            dtype: Box::new(dtype)
+        }
+    }
+}
+
+impl fmt::Display for Unique {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "{}", &self.name)
+    }
+}
+
 // All natively supported data types
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
@@ -113,7 +159,9 @@ pub enum DataType {
     //Record(String),
     Function(Vec<DataType>, Box<DataType>),
     Pointer(Rc<DataType>),
-    Types(String, Box<DataType>)
+    Types(Types),
+    Unique(Unique),
+    Named(String)
 }
 
 impl fmt::Display for DataType {
@@ -143,9 +191,13 @@ impl fmt::Display for DataType {
                     return write!(f, "^{}", *d);
                 }
             },
-            DataType::Types(s, d) => {
-                return write!(f, "{}", s);
+            DataType::Types(t) => {
+                return write!(f, "{}", t);
             },
+            DataType::Unique(u) => {
+                return write!(f, "{}", u);
+            },
+            DataType::Named(n) => &n,
             _ => unimplemented!()
         })
     }
@@ -162,9 +214,33 @@ impl DataType {
     pub fn derived(&self) -> &DataType
     {
         match self {
-            DataType::Types(s, d) => &*d,
+            DataType::Types(t) => &*t.dtype,
+            DataType::Unique(u) => &*u.dtype,
             _ => &self,
         }
+    }
+
+    pub fn unique(&self) -> bool
+    {
+        match self {
+            DataType::Unique(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn function(&self) -> bool
+    {
+        match self {
+            DataType::Function(_, _) => true,
+            _ => false
+        }
+    }
+}
+
+impl From<Unique> for DataType {
+    fn from(u: Unique) -> Self
+    {
+        DataType::Unique(u)
     }
 }
 
@@ -503,7 +579,7 @@ type Param = (String, DataType);
 // An ordered set of parameters
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParamList {
-    map: HashMap<String, (DataType, usize)>
+    pub map: HashMap<String, (DataType, usize)>
 }
 
 impl ParamList {
@@ -621,6 +697,7 @@ pub struct SyntaxTree {
     pub functions: Vec<Function>,
     pub declarations: Vec<FunctionDec>,
     pub records: HashMap<String, DataRecord>,
+    pub types: HashMap<String, DataType>
 }
 
 impl SyntaxTree {
@@ -630,7 +707,8 @@ impl SyntaxTree {
         Self {
             functions: Vec::new(),
             declarations: Vec::new(),
-            records: HashMap::new()
+            records: HashMap::new(),
+            types: HashMap::new()
         }
     }
 
@@ -648,5 +726,10 @@ impl SyntaxTree {
     pub fn append_rec(&mut self, r: DataRecord)
     {
         self.records.insert(r.name.clone(), r);
+    }
+
+    pub fn append_types(&mut self, name: &str, d: DataType)
+    {
+        self.types.insert(name.into(), d);
     }
 }
