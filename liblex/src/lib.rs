@@ -183,7 +183,7 @@ fn ident(lexer: &mut Lexer) -> Token
     lexer.string.token()
 }
 
-static KEYWORDS: [(&str, Key); 15] = [
+static KEYWORDS: [(&str, Key); 16] = [
     ("fun", Key::Fun),
     ("pure", Key::Pure),
     ("if", Key::If),
@@ -198,7 +198,8 @@ static KEYWORDS: [(&str, Key); 15] = [
     ("type", Key::Type),
     ("foreign", Key::Foreign),
     ("extern", Key::Extern),
-    ("break", Key::Break)
+    ("break", Key::Break),
+    ("unsafe", Key::Unsafe)
 ];
 
 static KEYWORDS_PRIM: [(&str, Prim); 15] = [
@@ -334,14 +335,18 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
             }
         },
         '&' => {
-            //if lexer.check('&') {
+            if lexer.check('&') {
+                LOp::And.token()
+            } else {
                 BOp::And.token()
-            /*} else {
-                unimplemented!()
-            }*/
+            }
         },
         '|' => {
-            BOp::Or.token()
+            if lexer.check('|') {
+                LOp::Or.token()
+            } else {
+                BOp::Or.token()
+            }
         },
         '>' => {
             if lexer.check('>') {
