@@ -9,17 +9,27 @@ use libtoken::IntoToken;
 use libtoken::Key;
 use libast::DataType;
 use libast::Types;
+use libast::Unique;
 use libast::DataRecord;
+
+pub fn unique(info: &mut ParseInfo) -> PResult<DataType>
+{
+    token!(Token::Keyword(Key::Unique), info.next())?;
+    let name = id(info)?;
+    token!(Token::Assign, info.next())?;
+    let dtype = types(info)?;
+    token!(Token::Semi, info.next())?;
+    Ok(DataType::Unique(Unique::new(name, dtype)))
+}
 
 pub fn name(info: &mut ParseInfo) -> PResult<DataType>
 {
     token!(Token::Keyword(Key::Type), info.next())?;
     let name = id(info)?;
     token!(Token::Assign, info.next())?;
-    let unique = token_is!(Token::Keyword(Key::Unique), info);
     let dtype = types(info)?;
     token!(Token::Semi, info.next())?;
-    Ok(DataType::Types(Types::new(name, unique, dtype)))
+    Ok(DataType::Types(Types::new(name, dtype)))
 }
 
 // Parse a single attribute
@@ -91,7 +101,7 @@ mod tests {
     fn name_test()
     {
         let tokens = liblex::scan(r#"
-            type Object = unique ^i32;
+            type Object = ^i32;
         "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
@@ -99,5 +109,19 @@ mod tests {
 
         println!("{}", n);
         println!("{}", n.derived());
+    }
+
+    #[test]
+    fn unique_test()
+    {
+        let tokens = liblex::scan(r#"
+            unique Window = ^i32;
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let u = unique(&mut info).unwrap();
+
+        println!("{}", u);
+        println!("{}", u.derived());
     }
 }
