@@ -8,7 +8,19 @@ use libtoken::Token;
 use libtoken::IntoToken;
 use libtoken::Key;
 use libast::DataType;
+use libast::Types;
 use libast::DataRecord;
+
+pub fn name(info: &mut ParseInfo) -> PResult<DataType>
+{
+    token!(Token::Keyword(Key::Type), info.next())?;
+    let name = id(info)?;
+    token!(Token::Assign, info.next())?;
+    let unique = token_is!(Token::Keyword(Key::Unique), info);
+    let dtype = types(info)?;
+    token!(Token::Semi, info.next())?;
+    Ok(DataType::Types(Types::new(name, unique, dtype)))
+}
 
 // Parse a single attribute
 fn attr(info: &mut ParseInfo) -> PResult<(String, DataType)>
@@ -73,5 +85,19 @@ mod tests {
             ("x".into(), Integer(S64)),
             ("y".into(), Integer(S64))
         ]);
+    }
+
+    #[test]
+    fn name_test()
+    {
+        let tokens = liblex::scan(r#"
+            type Object = unique ^i32;
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let n = name(&mut info).unwrap();
+
+        println!("{}", n);
+        println!("{}", n.derived());
     }
 }
