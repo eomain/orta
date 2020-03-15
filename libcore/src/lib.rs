@@ -16,6 +16,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use libtoken::TokenStream;
 use libast::SyntaxTree;
+use libtype::TypeMeta;
 pub use libgen::CodeGen;
 
 #[derive(Debug)]
@@ -120,7 +121,8 @@ fn parse(tokens: TokenStream) -> Result<SyntaxTree, Error>
 
 fn type_check(ast: &mut SyntaxTree) -> Result<(), Error>
 {
-    match libtype::init(ast) {
+    let meta = TypeMeta::new(true);
+    match libtype::init(meta, ast) {
         Err(e) => {
             eprintln!("error: {}", e);
             Err(Error::Type)
@@ -196,22 +198,6 @@ fn file_write<I>(name: I, s: &String) -> Result<fs::File, Error>
     };
     f.write(s.as_bytes());
     Ok(f)
-}
-
-mod aux {
-    pub mod ext {
-        pub fn ll(s: &str) -> String
-        {
-            format!("{}.ll", s)
-        }
-    }
-}
-
-mod output {
-    fn ir()
-    {
-
-    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -300,7 +286,6 @@ impl BuildCommand {
     fn libs(&mut self, s: &mut String)
     {
         match self.format {
-            //OutputFormat::IR(_) => (),
             OutputFormat::BIN => {
                 s.push('\n');
                 s.push_str(RTLIB);
