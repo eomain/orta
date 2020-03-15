@@ -6,6 +6,7 @@ extern crate libast;
 mod error;
 mod check;
 
+use std::collections::HashMap;
 use libsym::Scope;
 use libsym::Table;
 use libsym::TypeInfo;
@@ -58,12 +59,71 @@ fn insert_functions(global: &mut Table, functions: &Vec<Function>)
     }
 }
 
+fn update_functions(table: &mut Table, functions: &mut Vec<Function>) -> Result<(), Error>
+{
+    for f in functions {
+        for (_, v) in &mut f.param.map {
+            if let DataType::Named(s) = &mut v.0 {
+                match table.global.find_named_type(s) {
+                    Err(e) => return Err(e.into()),
+                    Ok(t) => v.0 = t.clone()
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn insert_declarations(global: &mut Table, declarations: &Vec<FunctionDec>)
 {
     for d in declarations {
         let args = d.param.clone();
         let ret = d.ret.clone();
         global.insert(&d.name, (TypeInfo::Function((args, ret)), true));
+    }
+}
+
+fn update_declarations(table: &mut Table,
+                       declarations: &mut Vec<FunctionDec>) -> Result<(), Error>
+{
+    for d in declarations {
+        for p in &mut d.param {
+            if let DataType::Named(s) = p {
+                match table.global.find_named_type(s) {
+                    Err(e) => return Err(e.into()),
+                    Ok(t) => *p = t.clone()
+                }
+            }
+        }
+
+        if let DataType::Named(s) = &mut d.ret {
+            match table.global.find_named_type(s) {
+                Err(e) => return Err(e.into()),
+                Ok(t) => d.ret = t.clone()
+            }
+        }
+    }
+    Ok(())
+}
+
+/*fn update_types(table: &mut Table,
+                types: &mut HashMap<String, DataType>) -> Result<(), Error>
+{
+    for (_, d) in types {
+        if let DataType::Unique(u) = d {
+            match types.get(&u.name) {
+                None => return Err(error!("undefined type {}", u.dtype)),
+                Some(t) => *u.dtype = (*t).clone()
+            }
+        }
+    }
+    Ok(())
+}*/
+
+fn insert_types(global: &mut Table, types: &HashMap<String, DataType>)
+{
+    for (k, t) in types {
+        global.insert(k, (TypeInfo::Named(t.clone()), true));
     }
 }
 
@@ -80,7 +140,13 @@ pub fn init(meta: TypeMeta, ast: &mut SyntaxTree) -> Result<(), Error>
     let mut env = Env::new();
     let global = &mut env.table;
 
+    //update_types(global, &mut ast.types)?;
+    insert_types(global, &ast.types);
+
+    update_declarations(global, &mut ast.declarations)?;
     insert_declarations(global, &ast.declarations);
+
+    update_functions(global, &mut ast.functions)?;
     insert_functions(global, &ast.functions);
 
     for f in &mut ast.functions {
