@@ -26,7 +26,8 @@ pub enum Token {
     Semi,
     Comma,
     Assign,
-    Arrow
+    Arrow,
+    At
 }
 
 // language reserved keywords
@@ -48,7 +49,8 @@ pub enum Key {
     Extern,
     Break,
     Unsafe,
-    Unique
+    Unique,
+    Define
 }
 
 impl IntoToken for Key {
