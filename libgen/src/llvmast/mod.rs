@@ -184,6 +184,9 @@ fn type_cast(dtype: &ast::DataType) -> Type
             let t = Box::new(type_cast(p));
             Type::Pointer(t)
         },
+        Unique(u) => {
+            type_cast(&u.dtype)
+        },
         Unset => unreachable!(),
         _ => unimplemented!()
     }
@@ -219,7 +222,7 @@ fn literal(c: &mut Context, l: &ast::Literal,
     match l {
         Signed(i) => (type_cast(t), Value::Int(*i)),
         Unsigned(u) => {
-            if let ast::DataType::Pointer(t) = t {
+            if let ast::DataType::Pointer(t) = t.derived() {
                 let id = c.id.register();
                 let t = type_cast(t);
                 let op = Operation::IntToPtr(id.clone(), Value::Uint(*u), t.clone());
@@ -469,8 +472,8 @@ fn cmp(c: &mut Context, e: &ast::CompExpr,
 {
     use ast::CompExpr::*;
     use ast::DataType::*;
-    let (op, id) = match e.get_type() {
-        Integer(_) => icmp(c, e, v),
+    let (op, id) = match e.get_type().derived() {
+        Integer(_) | Pointer(_) => icmp(c, e, v),
         _ => unreachable!()
     };
 
