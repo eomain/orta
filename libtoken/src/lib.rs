@@ -47,7 +47,8 @@ pub enum Key {
     Foreign,
     Extern,
     Break,
-    Unsafe
+    Unsafe,
+    Unique
 }
 
 impl IntoToken for Key {
