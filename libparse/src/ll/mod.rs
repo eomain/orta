@@ -23,7 +23,7 @@ use libast::Literal;
 use libast::Variable;
 use libast::Value;
 use libast::Assign;
-use libast::{ Expr, ExprList };
+use libast::{ Expr, ExprList, Cast };
 use libast::{ BinaryExpr, CallExpr, Return };
 use libast::DataType;
 use libast::{IntType, FloatType};
@@ -149,6 +149,41 @@ fn fun_ptr_test()
     println!("{:?}", fptr);
 }
 
+fn cast(info: &mut ParseInfo) -> PResult<Cast>
+{
+    token!(Token::Lparen, info.next())?;
+    let dtype = types(info)?;
+    token!(Token::Rparen, info.next())?;
+    let expr = if token_is!(Token::Lparen, info) {
+        let e = expr(info)?;
+        token!(Token::Rparen, info.look())?;
+        e
+    } else {
+        expr_value(info)?
+    };
+    Ok(Cast::new(expr, dtype))
+}
+
+#[test]
+fn cast_test()
+{
+    extern crate liblex;
+    use DataType::*;
+    use IntType::*;
+
+    let tokens = liblex::scan(r#"(i64) a"#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let c = cast(&mut info).unwrap();
+    println!("{:?}", c);
+
+    let tokens = liblex::scan(r#"(i64) (2 * a)"#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let c = cast(&mut info).unwrap();
+    println!("{:?}", c);
+}
+
 // Transforms token into the respective data type
 fn types(info: &mut ParseInfo) -> PResult<DataType>
 {
@@ -182,8 +217,9 @@ fn types(info: &mut ParseInfo) -> PResult<DataType>
 fn value(info: &mut ParseInfo) -> PResult<Value>
 {
     let msg = "expected variable or literal";
-    let token = info.next()
+    let mut token = info.next()
                     .ok_or(Error::from(msg))?;
+
     match token {
         Token::Literal(l) => Ok(Value::Literal(l.clone(), DataType::Unset)),
         Token::Symbol(s) => Ok(Value::Variable(Variable::new(s))),
@@ -191,6 +227,15 @@ fn value(info: &mut ParseInfo) -> PResult<Value>
             Key::True => Ok(Value::Literal(Literal::Boolean(true), DataType::Unset)),
             Key::False => Ok(Value::Literal(Literal::Boolean(false), DataType::Unset)),
             _ => Err(Error::from(msg))
+        },
+        Token::Operator(Operator::Arithmetic(AOp::Sub)) => {
+            match info.next().ok_or(Error::from(msg))? {
+                Token::Literal(Literal::Unsigned(u)) => {
+                    return Ok(Value::Literal(Literal::Signed(-(*u as isize)), DataType::Unset));
+                },
+                _ => ()
+            }
+            Err(Error::from(msg))
         },
         _ => Err(Error::from(msg))
     }
@@ -313,6 +358,19 @@ fn cop(info: &mut ParseInfo) -> Option<ROp>
     None
 }
 
+#[inline]
+fn lop(info: &mut ParseInfo) -> Option<LOp>
+{
+    if let Some(token) = info.look() {
+        if let Token::Operator(op) = token {
+            if let Operator::Logical(op) = op {
+                return Some(*op);
+            }
+        }
+    }
+    None
+}
+
 fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
 {
     let msg = "expected expression";
@@ -326,7 +384,8 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
                 Ok(Expr::Value(value(info)?))
             }
         },
-        Token::Literal(_) => {
+        Token::Literal(_) |
+        Token::Operator(Operator::Arithmetic(AOp::Sub)) => {
             Ok(Expr::Value(value(info)?))
         }
         Token::Keyword(k) => {
@@ -343,9 +402,16 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
     }
 }
 
-fn expr(info: &mut ParseInfo) -> PResult<Expr>
+fn cexpr(info: &mut ParseInfo) -> PResult<Expr>
 {
-    let mut e = expr_value(info)?;
+    let mut e = {
+        if let Some(&Token::Lparen) = info.look() {
+            Expr::Cast(cast(info)?)
+        } else {
+            expr_value(info)?
+        }
+    };
+
     if let Some(op) = aop(info) {
         info.next();
         e = Expr::Binary(expr::bin(info, e, op)?);
@@ -354,6 +420,17 @@ fn expr(info: &mut ParseInfo) -> PResult<Expr>
     if let Some(op) = cop(info) {
         info.next();
         e = Expr::Comp(expr::cmp(info, e, op)?);
+    }
+    Ok(e)
+}
+
+fn expr(info: &mut ParseInfo) -> PResult<Expr>
+{
+    let mut e = cexpr(info)?;
+
+    if let Some(op) = lop(info) {
+        info.next();
+        e = Expr::Logical(expr::log(info, e, op)?);
     }
 
     Ok(e)
@@ -371,16 +448,33 @@ fn expr_list(info: &mut ParseInfo, until: &Token, sep: Token) -> PResult<ExprLis
     Ok(e)
 }
 
+#[inline]
+fn semi(info: &mut ParseInfo) -> bool
+{
+    match info.look() {
+        Some(&Token::Keyword(Key::If)) |
+        Some(&Token::Keyword(Key::While)) => false,
+        _ => true
+    }
+}
+
+fn sexpr(info: &mut ParseInfo) -> PResult<ExprList>
+{
+    let semi = semi(info);
+    let e = expr(info)?;
+    if semi {
+        token!(Token::Semi, info.next())?;
+    }
+
+    return Ok(vec![e]);
+}
+
 fn exprs(info: &mut ParseInfo) -> PResult<ExprList>
 {
     Ok(block(info, |i| {
         let mut e = Vec::new();
         while Some(&Token::Rbrace) != i.look() {
-            let semi = match i.look() {
-                Some(&Token::Keyword(Key::If)) |
-                Some(&Token::Keyword(Key::While)) => false,
-                _ => true
-            };
+            let semi = semi(i);
             e.push(expr(i)?);
             if semi {
                 token!(Token::Semi, i.next())?;
@@ -388,6 +482,14 @@ fn exprs(info: &mut ParseInfo) -> PResult<ExprList>
         }
         Ok(e)
     })?)
+}
+
+fn block_exprs(info: &mut ParseInfo) -> PResult<ExprList>
+{
+    match info.look() {
+        Some(&Token::Lbrace) => exprs(info),
+        _ => sexpr(info)
+    }
 }
 
 // Parses a block with a pair of braces.
@@ -413,6 +515,7 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
         match token {
             Token::Keyword(k) => {
                 match k {
+                    Key::Extern |
                     Key::Pure |
                     Key::Fun => {
                         let f = fun::function(info)?;
@@ -433,9 +536,11 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                             tree.append_dec(dec);
                         }
                     },
+                    // TODO: error
                     _ => unimplemented!()
                 }
             },
+            // TODO: error
             _ => unimplemented!()
         }
     }
