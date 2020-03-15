@@ -44,6 +44,9 @@ fn params(info: &mut ParseInfo) -> PResult<ParamList>
 fn props(info: &mut ParseInfo) -> FunctionProp
 {
     let mut prop = FunctionProp::default();
+    if token_is!(Key::Extern.token(), info) {
+        prop.external();
+    }
     if token_is!(Key::Pure.token(), info) {
         prop.pure();
     }
@@ -160,6 +163,22 @@ mod tests {
         let p = &f.prop;
         assert_eq!("main", &f.name);
         assert_eq!(Unit, f.ret);
+        assert_eq!(p.pure, true);
+    }
+
+    #[test]
+    fn extern_fun()
+    {
+        let tokens = liblex::scan(r#"
+            extern pure fun main() {
+
+            }
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let f = function(&mut info).unwrap();
+        let p = &f.prop;
+        assert_eq!(p.external, true);
         assert_eq!(p.pure, true);
     }
 
