@@ -94,7 +94,7 @@ fn type_name(info: &mut ParseInfo) -> PResult<DataType>
             }
         },
         Token::Symbol(s) => {
-            unimplemented!()
+            DataType::Named(s.into())
         },
 
         _ => return Err(Error::from(msg))
@@ -537,7 +537,8 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                         }
                     },
                     Key::Unique => {
-                        let unique = meta::unique(info)?;
+                        let (unique, name) = meta::unique(info)?;
+                        tree.append_types(&name, unique);
                     },
                     // TODO: error
                     _ => unimplemented!()

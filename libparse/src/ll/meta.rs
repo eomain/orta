@@ -12,14 +12,14 @@ use libast::Types;
 use libast::Unique;
 use libast::DataRecord;
 
-pub fn unique(info: &mut ParseInfo) -> PResult<DataType>
+pub fn unique(info: &mut ParseInfo) -> PResult<(DataType, String)>
 {
     token!(Token::Keyword(Key::Unique), info.next())?;
     let name = id(info)?;
     token!(Token::Assign, info.next())?;
     let dtype = types(info)?;
     token!(Token::Semi, info.next())?;
-    Ok(DataType::Unique(Unique::new(name, dtype)))
+    Ok((DataType::Unique(Unique::new(&name, dtype)), name))
 }
 
 pub fn name(info: &mut ParseInfo) -> PResult<DataType>
@@ -29,7 +29,7 @@ pub fn name(info: &mut ParseInfo) -> PResult<DataType>
     token!(Token::Assign, info.next())?;
     let dtype = types(info)?;
     token!(Token::Semi, info.next())?;
-    Ok(DataType::Types(Types::new(name, dtype)))
+    Ok(DataType::Types(Types::new(&name, dtype)))
 }
 
 // Parse a single attribute
@@ -119,7 +119,7 @@ mod tests {
         "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
-        let u = unique(&mut info).unwrap();
+        let (u, _) = unique(&mut info).unwrap();
 
         println!("{}", u);
         println!("{}", u.derived());
