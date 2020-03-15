@@ -1,4 +1,7 @@
 
+mod cast;
+mod ret;
+
 use super::Error;
 use libsym::Error as SError;
 use libsym::Scope;
@@ -10,7 +13,11 @@ use libast::FloatType;
 use libast::Literal;
 use libast::Value;
 use libast::{Assign, Return};
-use libast::{Expr, BinaryExpr, BoolExpr, CallExpr, IfExpr, WhileExpr};
+use libast::{
+    Expr, BinaryExpr, BoolExpr,
+    CallExpr, IfExpr, WhileExpr,
+    CompExpr, LogicalExpr
+};
 use libast::Function;
 
 fn literal(s: &mut Scope, l: &Literal) -> DataType
@@ -19,12 +26,18 @@ fn literal(s: &mut Scope, l: &Literal) -> DataType
     use FloatType::*;
     match l {
         Literal::Signed(i) => {
-            const MI32: isize = std::i32::MAX as isize;
+            const MIN8: isize = std::i8::MIN as isize;
+            const MAX8: isize = std::i8::MAX as isize;
+            const MIN16: isize = std::i16::MIN as isize;
+            const MAX16: isize = std::i16::MAX as isize;
+            const MIN32: isize = std::i32::MIN as isize;
+            const MAX32: isize = std::i32::MAX as isize;
+
             DataType::Integer(match i {
-                0..=0xFF => S8,
-                0..=0xFFFF => S16,
-                0..=MI32 => S32,
-                _ => S64
+                MIN8..=MAX8 => S8,
+                MIN16..=MAX16 => S16,
+                MIN32..=MAX32 => S32,
+                _ =>  S64
             })
         },
         Literal::Unsigned(u) => {
@@ -197,7 +210,7 @@ fn call(info: &mut Info, s: &mut Scope,
 }
 
 fn bin(i: &mut Info, s: &mut Scope,
-         b: &mut BinaryExpr, expt: Option<DataType>) -> Result<(), Error>
+       b: &mut BinaryExpr, expt: Option<DataType>) -> Result<(), Error>
 {
     use DataType::*;
     use BinaryExpr::*;
@@ -228,34 +241,88 @@ fn bin(i: &mut Info, s: &mut Scope,
     Ok(())
 }
 
+fn cmp(i: &mut Info, s: &mut Scope,
+       c: &mut CompExpr, expt: Option<DataType>) -> Result<(), Error>
+{
+    use DataType::*;
+    use CompExpr::*;
+    match c {
+        Eq(a, b) |
+        Ne(a, b) |
+        Gt(a, b) |
+        Lt(a, b) |
+        Ge(a, b) |
+        Le(a, b) => {
+            expr(i, s, a, None)?;
+            expr(i, s, b, Some(a.get_type().clone()))?;
+            let (at, bt) = (a.get_type(), b.get_type());
+
+            match (at, bt) {
+                (Integer(_), Integer(_)) |
+                (Float(_), Float(_)) |
+                (Boolean, Boolean) => {
+                    if at != bt {
+                        let e = type_error(bt, at);
+                        return Err(suberror!(e, "relational operation error\n"));
+                    }
+                },
+                _ => return Err(error!(
+                    "cannot perform comparison operation on types `{}` and `{}`", at, bt
+                ))
+            }
+        }
+    }
+    Ok(())
+}
+
+fn log(i: &mut Info, s: &mut Scope,
+       l: &mut LogicalExpr, expt: Option<DataType>) -> Result<(), Error>
+{
+    use DataType::*;
+    use LogicalExpr::*;
+    match l {
+        And(a, b) |
+        Or(a, b) => {
+            expr(i, s, a, None)?;
+            expr(i, s, b, Some(a.get_type().clone()))?;
+        },
+        Not(a) => expr(i, s, a, None)?
+    }
+    Ok(())
+}
+
 fn expr(i: &mut Info, s: &mut Scope,
         e: &mut Expr, expt: Option<DataType>) -> Result<(), Error>
 {
     match e {
         Expr::Value(v) => value(i, s, v, expt)?,
         Expr::Binary(b) => bin(i, s, b, expt)?,
+        Expr::Comp(c) => cmp(i, s, c, expt)?,
+        Expr::Logical(l) => log(i, s, l, expt)?,
         Expr::If(f) => conditional(i, s, f, expt)?,
         Expr::While(w) => loop_while(i, s, w, expt)?,
+        Expr::Return(r) => ret(i, s, r, i.ret.clone())?,
         Expr::Assign(a) => assign(i, s, a)?,
         Expr::Call(c) => call(i, s, c, expt)?,
-        _ => ()
+        Expr::Cast(c) => cast::cast(i, s, c, expt)?,
+        _ => unimplemented!()
     }
     Ok(())
 }
 
 fn ret(i: &mut Info, s: &mut Scope, r: &mut Return,
-       name: &str, expt: DataType) -> Result<(), Error>
+       expt: DataType) -> Result<(), Error>
 {
     if let Some(e) = &mut r.expr {
         if let Err(e) = expr(i, s, &mut *e, Some(expt.clone())) {
-            return Err(suberror!(e, "return type error\n  from function: {}\n", name));
+            return Err(suberror!(e, "return type error\n  from function: {}\n", &i.name));
         }
         if *e.get_type() == expt {
             r.dtype = expt;
         } else {
             return Err(error!(
                 "return type in function: {}\n  found: type {}\n  expected: type {}",
-                name, e.get_type(), expt
+                &i.name, e.get_type(), expt
             ));
         }
     } else {
@@ -340,16 +407,22 @@ fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Info {
+pub struct Info {
+    // function name
+    name: String,
+    // function return type
+    ret: DataType,
     // if a second pass is needed
     pass: bool,
     pcount: usize
 }
 
 impl Info {
-    fn new() -> Self
+    fn new(name: &str, ret: DataType) -> Self
     {
         Self {
+            name: name.into(),
+            ret,
             pass: false,
             pcount: 1
         }
@@ -374,11 +447,7 @@ impl Info {
 fn fun(i: &mut Info, s: &mut Scope, f: &mut Function) -> Result<(), Error>
 {
     for e in &mut f.expr {
-        if let Expr::Return(r) = e {
-            ret(i, s, r, &f.name, f.ret.clone())?;
-        } else {
-            expr(i, s, e, None)?;
-        }
+        expr(i, s, e, None)?;
     }
 
     Ok(())
@@ -390,12 +459,16 @@ pub fn fpass(s: &mut Scope, f: &mut Function) -> Result<(), Error>
         s.insert_var(name, dtype.clone(), true);
     }
 
-    let mut info = Info::new();
+    let mut info = Info::new(&f.name, f.ret.clone());
 
     fun(&mut info, s, f)?;
     if info.second_pass() {
         info.pcount += 1;
         fun(&mut info, s, f)?;
+    }
+
+    if !ret::returns(&mut info, s, f) {
+        return Err(error!("function: `{}`: expected return statement", &f.name));
     }
 
     Ok(())
