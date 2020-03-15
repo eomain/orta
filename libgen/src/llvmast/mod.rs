@@ -1,4 +1,6 @@
 
+mod cast;
+
 use std::rc::Rc;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -30,7 +32,7 @@ impl From<&Type> for VarType {
     }
 }
 
-struct Id {
+pub struct Id {
     lindex: usize,
     gindex: usize,
     llabel: usize,
@@ -99,20 +101,35 @@ impl Id {
     }
 }
 
-struct FunInfo {
-    entry: Option<Inst>
+pub struct FunInfo {
+    entry: Option<Inst>,
+    retval: Option<Register>,
+    rtype: bool,
+    count: usize,
+    total: usize
 }
 
 impl FunInfo {
-    fn new() -> Self
+    fn new(d: &ast::DataType) -> Self
     {
         Self {
-            entry: None
+            entry: None,
+            retval: None,
+            rtype: Type::Void != type_cast(d),
+            count: 0,
+            total: 0
+        }
+    }
+
+    fn retval(&mut self)
+    {
+        if let None = self.retval {
+            self.retval = Some(Register::new("retval"));
         }
     }
 }
 
-struct Context<'a> {
+pub struct Context<'a> {
     m: &'a mut Module,
     id: &'a mut Id,
     info: FunInfo
@@ -205,7 +222,7 @@ fn literal(c: &mut Context, l: &ast::Literal,
             if let ast::DataType::Pointer(t) = t {
                 let id = c.id.register();
                 let t = type_cast(t);
-                let op = Operation::IntoToPtr(id.clone(), Value::Uint(*u), t.clone());
+                let op = Operation::IntToPtr(id.clone(), Value::Uint(*u), t.clone());
                 v.push(Inst::new(op, Type::Int(64)));
                 (Type::Pointer(Box::new(t)), Value::Reg(id))
             } else {
@@ -260,7 +277,8 @@ fn variable(c: &mut Context, var: &ast::Variable, v: &mut Vec<Inst>) -> (Type, V
 }
 
 // Convert an AST value into a LLVM value
-fn value(c: &mut Context, val: &ast::Value, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+fn value(c: &mut Context, val: &ast::Value,
+         v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
     use ast::Value::*;
     Some(vec![match val {
@@ -287,6 +305,15 @@ fn constant_test()
 }
 
 #[inline]
+fn unary_expr(c: &mut Context, e: &ast::Expr,
+              v: &mut Vec<Inst>) -> (Type, Value)
+{
+    let e1 = expr(c, e, v).unwrap();
+    let t = e1[0].0.clone();
+    (t, e1[0].1.clone())
+}
+
+#[inline]
 fn bin_expr(c: &mut Context, e: (&ast::Expr, &ast::Expr),
             v: &mut Vec<Inst>) -> (Type, Value, Value)
 {
@@ -306,60 +333,55 @@ fn signed(t: &Type) -> bool
     }
 }
 
-fn fbin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> (Operation, Type, Register)
+fn fbin(c: &mut Context, b: &ast::BinaryExpr,
+        v: &mut Vec<Inst>) -> (Operation, Type, Register)
 {
+    let id = c.id.register();
     use ast::BinaryExpr::*;
     match b {
         Add(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             (Operation::Fadd(id.clone(), e1, e2), t, id)
         },
         Sub(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             (Operation::Fsub(id.clone(), e1, e2), t, id)
         },
         Mul(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             (Operation::Fmul(id.clone(), e1, e2), t, id)
         },
         Div(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             (Operation::Fdiv(id.clone(), e1, e2), t, id)
         },
         Mod(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             (Operation::Frem(id.clone(), e1, e2), t, id)
         }
     }
 }
 
-fn ibin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> (Operation, Type, Register)
+fn ibin(c: &mut Context, b: &ast::BinaryExpr,
+        v: &mut Vec<Inst>) -> (Operation, Type, Register)
 {
+    let id = c.id.register();
     use ast::BinaryExpr::*;
     match b {
         Add(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             (Operation::Add(id.clone(), e1, e2), t, id)
         },
         Sub(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             (Operation::Sub(id.clone(), e1, e2), t, id)
         },
         Mul(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             (Operation::Mul(id.clone(), e1, e2), t, id)
         },
         Div(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             if signed(&t) {
                 (Operation::Sdiv(id.clone(), e1, e2), t, id)
             } else {
@@ -368,7 +390,6 @@ fn ibin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> (Operation, 
         },
         Mod(a, b) => {
             let (t, e1, e2) = bin_expr(c, (a, b), v);
-            let id = c.id.register();
             if signed(&t) {
                 (Operation::Srem(id.clone(), e1, e2), t, id)
             } else {
@@ -378,7 +399,8 @@ fn ibin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> (Operation, 
     }
 }
 
-fn bin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+fn bin(c: &mut Context, b: &ast::BinaryExpr,
+       v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
     use ast::BinaryExpr::*;
     let (op, t, id) = match b.get_type() {
@@ -391,18 +413,175 @@ fn bin(c: &mut Context, b: &ast::BinaryExpr, v: &mut Vec<Inst>) -> Option<Vec<(T
     Some(vec![(t, Value::Reg(id))])
 }
 
-fn ret(c: &mut Context, r: &ast::Return, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+fn icmp(c: &mut Context, e: &ast::CompExpr,
+        v: &mut Vec<Inst>) -> (Operation, Register)
 {
-    let value = match &r.expr {
-        None => return None,
-        Some(e) => Some({
-            expr(c, e, v).unwrap()[0].1.clone()
-        })
+    let id = c.id.register();
+
+    use ast::CompExpr::*;
+    let op = match e {
+        Eq(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            Operation::Icmp(id.clone(), CmpType::Eq, t, v1, v2)
+        },
+        Ne(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            Operation::Icmp(id.clone(), CmpType::Ne, t, v1, v2)
+        },
+        Gt(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            if signed(&t) {
+                Operation::Icmp(id.clone(), CmpType::Sgt, t, v1, v2)
+            } else {
+                Operation::Icmp(id.clone(), CmpType::Ugt, t, v1, v2)
+            }
+        },
+        Lt(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            if signed(&t) {
+                Operation::Icmp(id.clone(), CmpType::Slt, t, v1, v2)
+            } else {
+                Operation::Icmp(id.clone(), CmpType::Ult, t, v1, v2)
+            }
+        },
+        Ge(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            if signed(&t) {
+                Operation::Icmp(id.clone(), CmpType::Sge, t, v1, v2)
+            } else {
+                Operation::Icmp(id.clone(), CmpType::Uge, t, v1, v2)
+            }
+        },
+        Le(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            if signed(&t) {
+                Operation::Icmp(id.clone(), CmpType::Sle, t, v1, v2)
+            } else {
+                Operation::Icmp(id.clone(), CmpType::Ule, t, v1, v2)
+            }
+        }
+    };
+    (op, id)
+}
+
+fn cmp(c: &mut Context, e: &ast::CompExpr,
+       v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+{
+    use ast::CompExpr::*;
+    use ast::DataType::*;
+    let (op, id) = match e.get_type() {
+        Integer(_) => icmp(c, e, v),
+        _ => unreachable!()
     };
 
+    v.push(Inst::new(op, Type::None));
+    Some(vec![(Type::Int(1), Value::Reg(id))])
+}
+
+fn phi(c: &mut Context, e: (Type, Vec<(Value, Register)>),
+       v: &mut Vec<Inst>) -> Register
+{
+    let id = c.id.register();
+    let op = Operation::Phi(id.clone(), e.1);
+    v.push(Inst::new(op , e.0));
+    id
+}
+
+fn log_cmp(c: &mut Context, e: &ast::Expr,
+       v: &mut Vec<Inst>) -> Register
+{
+    let (t, val) = unary_expr(c, e, v);
+    let r = c.id.register();
+    let op = Operation::Icmp(r.clone(), CmpType::Ne, t, val, Value::Int(0));
+    v.push(Inst::new(op, Type::None));
+    r
+}
+
+fn log(c: &mut Context, l: &ast::LogicalExpr,
+       v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+{
+    use ast::LogicalExpr::*;
+    use ast::DataType::*;
+
+     let id = match l {
+        And(a, b) => {
+            let (l0s, l0op) = c.id.label();
+            v.push(Inst::new(Operation::BrCond(Register::new(&l0s)), Type::None));
+            v.push(Inst::new(l0op, Type::Label));
+            let r1 = log_cmp(c, a, v);
+
+            let (l1s, l1op) = c.id.label();
+            let (l2s, l2op) = c.id.label();
+
+            let op = Operation::Br(
+                Value::Reg(r1.clone()), Register::new(&l1s), Register::new(&l2s)
+            );
+            v.push(Inst::new(op, Type::Int(1)));
+            v.push(Inst::new(l1op, Type::Label));
+
+            let r2 = log_cmp(c, b, v);
+            v.push(Inst::new(Operation::BrCond(Register::new(&l2s)), Type::None));
+            v.push(Inst::new(l2op, Type::Label));
+
+            let vals = vec![
+                (Value::Reg(r1), Register::new(&l0s)),
+                (Value::Reg(r2), Register::new(&l1s))
+            ];
+            phi(c, (Type::Int(1), vals), v)
+        },
+        Or(a, b) => {
+            let (l0s, l0op) = c.id.label();
+            v.push(Inst::new(Operation::BrCond(Register::new(&l0s)), Type::None));
+            v.push(Inst::new(l0op, Type::Label));
+            let r1 = log_cmp(c, a, v);
+
+            let (l1s, l1op) = c.id.label();
+            let (l2s, l2op) = c.id.label();
+
+            let op = Operation::Br(
+                Value::Reg(r1.clone()), Register::new(&l2s), Register::new(&l1s)
+            );
+            v.push(Inst::new(op, Type::Int(1)));
+            v.push(Inst::new(l1op, Type::Label));
+
+            let r2 = log_cmp(c, b, v);
+            v.push(Inst::new(Operation::BrCond(Register::new(&l2s)), Type::None));
+            v.push(Inst::new(l2op, Type::Label));
+
+            let vals = vec![
+                (Value::Reg(r1), Register::new(&l0s)),
+                (Value::Reg(r2), Register::new(&l1s))
+            ];
+            phi(c, (Type::Int(1), vals), v)
+        },
+        Not(a) => {
+            let id = c.id.register();
+            id
+        }
+    };
+
+    Some(vec![(Type::Int(1), Value::Reg(id))])
+}
+
+fn ret(c: &mut Context, r: &ast::Return,
+       v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+{
     let t = type_cast(&r.dtype);
-    let op = Operation::Ret(value);
-    v.push(Inst::new(op, t.clone()));
+    let value = match &r.expr {
+        None => None,
+        Some(e) => Some(expr(c, e, v).unwrap()[0].1.clone())
+    };
+
+    if let Some(r) = &c.info.retval {
+        let id = c.id.register();
+        let rc = Rc::new(r.clone());
+        assert_eq!(value.is_some(), true);
+        let op = Operation::Store(value.unwrap(), t.clone(), rc);
+        v.push(Inst::new(op, t.clone()));
+    } else {
+        let op = Operation::Ret(value);
+        v.push(Inst::new(op, t.clone()));
+    }
     None
 }
 
@@ -446,7 +625,8 @@ fn call_id(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Value
     }
 }
 
-fn call(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+fn call(c: &mut Context, e: &ast::CallExpr,
+        v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
     // Return type of function call
     let rtype = type_cast(&e.rtype);
@@ -476,17 +656,21 @@ fn call(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Option<Vec<(Ty
     }
 }
 
-fn expr(c: &mut Context, e: &ast::Expr, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+fn expr(c: &mut Context, e: &ast::Expr,
+        v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
     use ast::Expr::*;
     match e {
         Value(e) => value(c, e, v),
         Binary(b) => bin(c, b, v),
+        Comp(e) => cmp(c, e, v),
+        Logical(l) => log(c, l, v),
         If(f) => { conditional(c, f, v); None },
         While(w) => { loop_while(c, w, v); None },
         Return(r) => ret(c, r, v),
         Assign(a) => { assign(c, a, v); None },
         Call(e) => call(c, e, v),
+        Cast(e) => cast::cast(c, e, v),
         _ => unimplemented!()
     }
 }
@@ -494,7 +678,7 @@ fn expr(c: &mut Context, e: &ast::Expr, v: &mut Vec<Inst>) -> Option<Vec<(Type, 
 fn assign_ptr(c: &mut Context, t: Type, val: Value, v: &mut Vec<Inst>) -> Value
 {
     let reg = c.id.register();
-    let ptr = Operation::IntoToPtr(reg.clone(), val, t.clone());
+    let ptr = Operation::IntToPtr(reg.clone(), val, t.clone());
     v.push(Inst::new(ptr, Type::Int(64)));
     Value::Reg(reg)
 }
@@ -536,20 +720,44 @@ fn bexpr(c: &mut Context, b: &ast::BoolExpr, v: &mut Vec<Inst>) -> (Type, Value)
     }
 }
 
+fn ret_end(c: &mut Context) -> bool
+{
+    if c.info.rtype && c.info.count == c.info.total {
+        c.info.retval();
+        true
+    } else {
+        false
+    }
+}
+
+static REND: &str = "exit";
+
+// Convert an if-else into LLVM
 fn conditional_else(c: &mut Context, br: &ast::IfExpr, v: &mut Vec<Inst>)
 {
+    ret_end(c);
+    let rend = c.info.retval.is_some();
+
     let (_, val) = bexpr(c, &br.cond, v);
     let (start, sop) = c.id.label();
     let (els, elop) = c.id.label();
     let (ends, endop) = c.id.label();
+
     let op = Operation::Br(val, Register::new(&start), Register::new(&els));
-    let jmp = Operation::BrCond(Register::new(&ends));
+    let jmp = if rend {
+        Operation::BrCond(Register::new(REND))
+    } else {
+        Operation::BrCond(Register::new(&ends))
+    };
     v.push(Inst::new(op, Type::Int(1)));
     v.push(Inst::new(sop, Type::Label));
+
     for e in &br.expr {
         expr(c, e, v);
     }
+
     v.push(Inst::new(jmp.clone(), Type::Label));
+
     if let Some(exprs) = &br.other {
         v.push(Inst::new(elop, Type::Label));
         for e in exprs {
@@ -557,14 +765,19 @@ fn conditional_else(c: &mut Context, br: &ast::IfExpr, v: &mut Vec<Inst>)
         }
         v.push(Inst::new(jmp, Type::Label));
     }
-    v.push(Inst::new(endop, Type::Label));
+
+    if !rend {
+        v.push(Inst::new(endop, Type::Label));
+    }
 }
 
+// Convert an if or possible if-else into LLVM
 fn conditional(c: &mut Context, br: &ast::IfExpr, v: &mut Vec<Inst>)
 {
     if br.other.is_some() {
         return conditional_else(c, br, v);
     }
+
     let (_, val) = bexpr(c, &br.cond, v);
     let (start, sop) = c.id.label();
     let (ends, endop) = c.id.label();
@@ -572,33 +785,53 @@ fn conditional(c: &mut Context, br: &ast::IfExpr, v: &mut Vec<Inst>)
     let jmp = Operation::BrCond(Register::new(&ends));
     v.push(Inst::new(op, Type::Int(1)));
     v.push(Inst::new(sop, Type::Label));
+
     for e in &br.expr {
         expr(c, e, v);
     }
+
     v.push(Inst::new(jmp, Type::Label));
     v.push(Inst::new(endop, Type::Label));
 }
 
+// Convert a while loop into LLVM
 fn loop_while(c: &mut Context, w: &ast::WhileExpr, v: &mut Vec<Inst>)
 {
+    ret_end(c);
+
     let (_, val) = bexpr(c, &w.cond, v);
     let (br, brop) = c.id.label();
     let (start, sop) = c.id.label();
     let (ends, endop) = c.id.label();
+
     let op = Operation::BrCond(Register::new(&br));
     v.push(Inst::new(op, Type::Label));
     let op = Operation::Br(val, Register::new(&start), Register::new(&ends));
     v.push(Inst::new(brop, Type::Label));
     v.push(Inst::new(op, Type::Int(1)));
     v.push(Inst::new(sop, Type::Label));
+
+    let mut vec = Vec::new();
     for e in &w.expr {
-        expr(c, e, v);
+        expr(c, e, &mut vec);
     }
+    v.append(&mut vec);
+
     let back = Operation::BrCond(Register::new(&br));
     v.push(Inst::new(back, Type::Label));
     v.push(Inst::new(endop, Type::Label));
 }
 
+// Search for use of a Ret (return) instruction
+fn contains_ret(v: &Vec<Inst>) -> bool
+{
+    v.iter().find(|i| match i.get_op() {
+        Operation::Ret(_) => true,
+        _ => false
+    }).is_some()
+}
+
+// Check if LLVM function needs an entry label
 fn entry(v: &mut Vec<Inst>, o: Operation)
 {
     if let Operation::Label(s) = v[0].get_op().clone() {
@@ -611,6 +844,17 @@ fn entry(v: &mut Vec<Inst>, o: Operation)
     }
 }
 
+// Convert function properties into LLVM properties
+fn property(p: &ast::FunctionProp) -> Properties
+{
+    let linkage = match p.external {
+        true => Linkage::External,
+        _ => Linkage::Private
+    };
+
+    Properties::new(linkage)
+}
+
 // Convert an AST function into an LLVM function
 fn function(c: &mut Context, func: &ast::Function) -> Function
 {
@@ -621,7 +865,8 @@ fn function(c: &mut Context, func: &ast::Function) -> Function
         None
     } else {
         Some(paramlist.iter()
-                      .map(|a| (type_cast(&a.1), Register::from(&Local::new(&a.0)))).collect())
+                      .map(|a| (type_cast(&a.1), Register::from(&Local::new(&a.0))))
+                      .collect())
     };
 
     if let Some(param) = &param {
@@ -630,19 +875,42 @@ fn function(c: &mut Context, func: &ast::Function) -> Function
         }
     }
 
-    let mut f = Function::new(name, param, ret, None);
+    let prop = property(&func.prop);
+    let mut f = Function::new(name, param, ret.clone(), Some(prop));
     let mut v = Vec::new();
 
     let (_, eop) = c.id.label();
+    c.info.count = 1;
+    c.info.total = func.expr.len();
     for e in &func.expr {
         expr(c, e, &mut v);
+        c.info.count += 1;
     }
+
+    if let Some(r) = &c.info.retval {
+        let rc = Rc::new(r.clone());
+        let op = Operation::Alloca(rc.clone(), None);
+        v.insert(0, Inst::new(op, ret.clone()));
+
+        v.push(Inst::new(label(REND), Type::Label));
+        let id = c.id.register();
+        let op = Operation::Load(id.clone(), ret.clone(), rc);
+        v.push(Inst::new(op, ret.clone()));
+        let op = Operation::Ret(Some(Value::Reg(id)));
+        v.push(Inst::new(op, ret));
+    } else if ret == Type::Void {
+        let i = Inst::new(Operation::Ret(None), ret);
+        v.push(i);
+    }
+
     if v.len() > 1 {
         entry(&mut v, eop);
     }
-    for inst in &v {
-        f.append(inst.clone());
+
+    while v.len() > 0 {
+        f.append(v.remove(0));
     }
+
     c.id.reset();
     f
 }
@@ -678,7 +946,7 @@ pub fn main(name: &str, tree: &ast::SyntaxTree) -> Module
     for f in &tree.functions {
         let function = {
             let mut context = Context::new(
-                &mut module, &mut id, FunInfo::new()
+                &mut module, &mut id, FunInfo::new(&f.ret)
             );
             function(&mut context, f)
         };

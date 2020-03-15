@@ -26,7 +26,14 @@ pub struct Properties {
 }
 
 impl Properties {
-    fn default() -> Self
+    pub fn new(linkage: Linkage) -> Self
+    {
+        Self {
+            linkage
+        }
+    }
+
+    pub fn default() -> Self
     {
         Self {
             linkage: Linkage::Private
@@ -142,6 +149,24 @@ fn param(p: &Vec<(Type, Register)>) -> String
     s
 }
 
+fn phi_list(p: &Vec<(Value, Register)>) -> String
+{
+    let mut s = String::new();
+    if p.len() > 0 {
+        let mut arg = &p[0];
+        let mut t: String = arg.0.clone().into();
+        let mut r = &arg.1.id;
+        s.push_str(&format!("[ {}, {} ]", t, r));
+        for i in 1..p.len() {
+            arg = &p[i];
+            t = arg.0.clone().into();
+            r = &arg.1.id;
+            s.push_str(&format!(", [ {}, {} ]", t, r));
+        }
+    }
+    s
+}
+
 fn param_val(p: &Vec<(Type, Value)>) -> String
 {
     let mut s = String::new();
@@ -220,7 +245,8 @@ pub enum Type {
     Function(Box<Type>, Vec<Type>),
     Pointer(Box<Type>),
     Types(Rc<GlobalId>, Vec<Type>),
-    Label
+    Label,
+    None
 }
 
 impl From<Type> for String {
@@ -250,7 +276,7 @@ impl From<Type> for String {
                 let p = param_dec(&t);
                 format!("{} = type {{ {} }}", r.id, p)
             },
-            Label => "".into()
+            Label | None => "".into()
         }
     }
 }
@@ -284,7 +310,7 @@ fn fun_type_test()
     println!("{}", p);
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Void,
     Int(isize),
@@ -325,7 +351,7 @@ pub fn label(s: &str) -> Operation
     Operation::Label(format!("{}:", s))
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Operation {
     Add(Register, Value, Value),
     Fadd(Register, Value, Value),
@@ -347,7 +373,20 @@ pub enum Operation {
     Frem(Register, Value, Value),
     Udiv(Register, Value, Value),
     Urem(Register, Value, Value),
-    IntoToPtr(Register, Value, Type),
+    IntToPtr(Register, Value, Type),
+    PtrToInt(Register, Value, Type),
+    Trunc(Register, Value, Type),
+    Zext(Register, Value, Type),
+    Sext(Register, Value, Type),
+    FpTrunc(Register, Value, Type),
+    FpExt(Register, Value, Type),
+    FpToUi(Register, Value, Type),
+    FpToSi(Register, Value, Type),
+    UiToFp(Register, Value, Type),
+    SiToFp(Register, Value, Type),
+    Bitcast(Register, Value, Type),
+    Icmp(Register, CmpType, Type, Value, Value),
+    Phi(Register, Vec<(Value, Register)>),
     Label(String)
 }
 
@@ -376,7 +415,20 @@ impl Operation {
             Frem(_, _, _) => "frem",
             Udiv(_, _, _) => "udiv",
             Urem(_, _, _) => "urem",
-            IntoToPtr(_, _, _) => "inttoptr",
+            IntToPtr(_, _, _) => "inttoptr",
+            PtrToInt(_, _, _) => "ptrtoint",
+            Trunc(_, _, _) => "trunc",
+            Zext(_, _, _) => "zext",
+            Sext(_, _, _) => "sext",
+            FpTrunc(_, _, _) => "fptrunc",
+            FpExt(_, _, _) => "fpext",
+            FpToUi(_, _, _) => "fptoui",
+            FpToSi(_, _, _) => "fptosi",
+            UiToFp(_, _, _) => "uitofp",
+            SiToFp(_, _, _) => "sitofp",
+            Bitcast(_, _, _) => "bitcast",
+            Icmp(_, _, _, _, _) => "icmp",
+            Phi(_, _) => "phi",
             Label(s) => &s
         }
     }
@@ -431,14 +483,24 @@ impl Operation {
                 let p = param_val(indexes);
                 Some(format!(", {} {}, {}", ptr.0, ptr.1.id, p))
             },
-            IntoToPtr(_, v, t) => {
+            IntToPtr(_, v, t) => {
                 Some(format!("{} to {}*", v, t))
             },
+            PtrToInt(_, v, t) | Trunc(_, v, t) | Zext(_, v, t) |
+            Sext(_, v, t) | FpTrunc(_, v, t) | FpExt(_, v, t) |
+            FpToUi(_, v, t) | FpToSi(_, v, t) | UiToFp(_, v, t) |
+            SiToFp(_, v, t) | Bitcast(_, v, t) => {
+                Some(format!("{} to {}", v, t))
+            },
+            Icmp(_, c, t, v1, v2) => {
+                Some(format!("{} {} {}, {}", c, t, v1, v2))
+            },
+            Phi(_, v) => Some(format!("{}", phi_list(v))),
             _ => None
         }
     }
 
-    fn reg(&self) -> Option<String>
+    fn reg(&self) -> Option<&str>
     {
         use Operation::*;
         match self {
@@ -453,14 +515,53 @@ impl Operation {
             Srem(r, _, _) |
             Frem(r, _, _) |
             Udiv(r, _, _) |
-            Urem(r, _, _) => Some(r.id.clone()),
-            Alloca(r, _) => Some(r.id.clone()),
-            Call(r, _, _) => if let Some(r) = r { Some(r.id.clone()) } else { None },
-            Load(r, _, _) => Some(r.id.clone()),
-            GetElPtr(r, _, _) => Some(r.id.clone()),
-            IntoToPtr(r, _, _) => Some(r.id.clone()),
+            Urem(r, _, _) => Some(&r.id),
+            Alloca(r, _) => Some(&r.id),
+            Call(r, _, _) => if let Some(r) = r { Some(&r.id) } else { None },
+            Load(r, _, _) => Some(&r.id),
+            GetElPtr(r, _, _) => Some(&r.id),
+            IntToPtr(r, _, _) | PtrToInt(r, _, _) |
+            Trunc(r, _, _) | Zext(r, _, _) | Sext(r, _, _) |
+            FpTrunc(r, _, _) | FpExt(r, _, _) | FpToUi(r, _, _) |
+            FpToSi(r, _, _) | UiToFp(r, _, _) | SiToFp(r, _, _) |
+            Bitcast(r, _, _) => Some(&r.id),
+            Icmp(r, _, _, _, _) => Some(&r.id),
+            Phi(r, _) => Some(&r.id),
             _ => None
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CmpType {
+    Eq,
+    Ne,
+    Ugt,
+    Uge,
+    Ult,
+    Ule,
+    Sgt,
+    Sge,
+    Slt,
+    Sle
+}
+
+impl fmt::Display for CmpType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        use CmpType::*;
+        write!(f, "{}", match self {
+            Eq => "eq",
+            Ne => "ne",
+            Ugt => "ugt",
+            Uge => "uge",
+            Ult => "ult",
+            Ule => "ule",
+            Sgt => "sgt",
+            Sge => "sge",
+            Slt => "slt",
+            Sle => "sle"
+        })
     }
 }
 
@@ -657,7 +758,7 @@ impl Output for Function {
         where W: std::io::Write
     {
         let name = &self.name;
-        let t: String = self.ret.clone().into();
+        let ret: String = self.ret.clone().into();
         let mut i: String;
 
         let param = match &self.param {
@@ -666,16 +767,14 @@ impl Output for Function {
         };
         let prop: String = self.prop.into();
 
-        writeln!(w, "define {} {} {}({}) {{", prop, t, name, param);
+        if prop.len() > 0 {
+            writeln!(w, "define {} {} {}({}) {{", prop, ret, name, param);
+        } else {
+            writeln!(w, "define {} {}({}) {{", ret, name, param);
+        }
         for inst in &self.body {
             i = inst.clone().into();
             writeln!(w, "\t{}", i);
-        }
-
-        if let Type::Void = self.ret {
-            let ret = Inst::new(Operation::Ret(None), self.ret.clone());
-            let ret: String = ret.into();
-            writeln!(w, "\t{}", ret);
         }
         writeln!(w, "}}");
     }
