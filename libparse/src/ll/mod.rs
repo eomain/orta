@@ -23,7 +23,7 @@ use libast::Literal;
 use libast::Variable;
 use libast::Value;
 use libast::Assign;
-use libast::{ Expr, ExprList, Cast };
+use libast::{ Expr, ExprList, Cast, AtExpr };
 use libast::{ BinaryExpr, CallExpr, Return };
 use libast::DataType;
 use libast::{IntType, FloatType};
@@ -371,12 +371,36 @@ fn lop(info: &mut ParseInfo) -> Option<LOp>
     None
 }
 
+fn at(info: &mut ParseInfo) -> PResult<Expr>
+{
+    token!(Token::At, info.next())?;
+    let at = Expr::At(AtExpr::new());
+    match info.look() {
+        Some(&Token::Period) => Ok(meta::access(info, at)?),
+        _ => Ok(at)
+    }
+}
+
+#[test]
+fn at_test()
+{
+    extern crate liblex;
+
+    let tokens = liblex::scan(r#"
+        @.get(true)
+    "#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let at = at(&mut info).unwrap();
+}
+
 fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
 {
     let msg = "expected expression";
     let token = info.look()
                     .ok_or(Error::from(msg))?;
-    match token {
+    let mut e = match token {
+        Token::At => Ok(at(info)?),
         Token::Symbol(_) => {
             if Some(&Token::Lparen) == info.peek() {
                 Ok(Expr::Call(call(info)?))
@@ -399,7 +423,13 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
             }
         },
         _ => Err(Error::from(msg))
+    }?;
+
+    while let Some(&Token::Period) = info.look() {
+        e = meta::access(info, e)?;
     }
+
+    Ok(e)
 }
 
 fn cexpr(info: &mut ParseInfo) -> PResult<Expr>

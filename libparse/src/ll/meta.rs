@@ -110,19 +110,31 @@ pub fn method(info: &mut ParseInfo) -> PResult<Method>
     Ok(Method::new(&name, param, rtype, expr))
 }
 
-pub fn field_access(info: &mut ParseInfo) -> PResult<FieldAccess>
+pub fn field_access(info: &mut ParseInfo, e: Expr) -> PResult<FieldAccess>
 {
-    token!(Token::Period, info.next())?;
     let field = id(info)?;
-    Ok(FieldAccess::new(&field))
+    Ok(FieldAccess::new(&field, e))
 }
 
-pub fn method_access(info: &mut ParseInfo) -> PResult<MethodAccess>
+pub fn method_access(info: &mut ParseInfo, e: Expr) -> PResult<MethodAccess>
+{
+    let call = call(info)?;
+    Ok(MethodAccess::new(call, e))
+}
+
+pub fn access(info: &mut ParseInfo, e: Expr) -> PResult<Expr>
 {
     token!(Token::Period, info.next())?;
-    let method = id(info)?;
-    let call = call(info)?;
-    Ok(MethodAccess::new(&method, call))
+    match info.look() {
+        Some(&Token::Symbol(_)) => (),
+        _ => return Err("expected identifier".into())
+    }
+
+    match info.peek() {
+        Some(&Token::Lparen) => Ok(Expr::Method(method_access(info, e)?)),
+        _ => Ok(Expr::Field(field_access(info, e)?)),
+        //_ => Err("expected either '.' or '('".into())
+    }
 }
 
 pub fn define(info: &mut ParseInfo) -> PResult<()>
@@ -196,22 +208,24 @@ mod tests {
     fn field_access_test()
     {
         let tokens = liblex::scan(r#"
-            .x
+            @.foo.chain().method.calls()
         "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
-        let a = field_access(&mut info).unwrap();
+        let a = expr_value(&mut info).unwrap();
+        println!("{:?}", a);
     }
 
     #[test]
     fn method_access_test()
     {
         let tokens = liblex::scan(r#"
-            .invoke(a, b * 2)
+            point.invoke(a, b * 2).frame
         "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
-        let a = field_access(&mut info).unwrap();
+        let a = expr_value(&mut info).unwrap();
+        println!("{:?}", a);
     }
 
     #[test]
