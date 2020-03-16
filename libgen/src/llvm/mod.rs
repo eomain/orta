@@ -235,6 +235,30 @@ impl Output for Module {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Types {
+    id: Rc<Register>,
+    types: Vec<Type>
+}
+
+impl Types {
+    pub fn new(id: Rc<Register>, types: Vec<Type>) -> Self
+    {
+        Self {
+            id, types
+        }
+    }
+}
+
+impl Output for Types {
+    fn output<W>(&self, w: &mut W)
+        where W: std::io::Write
+    {
+        let p = param_dec(&self.types);
+        writeln!(w, "{} = type {{ {} }}", self.id.id, p);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Void,
     Int(usize),
@@ -244,7 +268,7 @@ pub enum Type {
     Array(usize, Box<Type>),
     Function(Box<Type>, Vec<Type>),
     Pointer(Box<Type>),
-    Types(Rc<GlobalId>, Vec<Type>),
+    Types(Rc<Register>),
     Label,
     None
 }
@@ -272,12 +296,25 @@ impl From<Type> for String {
                 let t: String = (*t).into();
                 format!("{}*", t)
             },
-            Types(r, t) => {
-                let p = param_dec(&t);
-                format!("{} = type {{ {} }}", r.id, p)
+            Types(r) => {
+                format!("{}", r.id)
             },
             Label | None => "".into()
         }
+    }
+}
+
+impl From<Types> for GlobalValue {
+    fn from(t: Types) -> Self
+    {
+        GlobalValue::Types(t)
+    }
+}
+
+impl From<&Types> for Type {
+    fn from(t: &Types) -> Self
+    {
+        Type::Types(t.id.clone())
     }
 }
 
@@ -292,9 +329,9 @@ impl fmt::Display for Type {
 #[test]
 fn types()
 {
-    let gid = Rc::new(GlobalId::new("data"));
-    let t = Type::Types(gid, vec![Type::Int(32), Type::Int(8)]);
-    println!("{}", t);
+    let gid = Rc::new(Register::new("data"));
+    let t = Types::new(gid.clone(), vec![Type::Int(32), Type::Int(8), Type::Types(gid)]);
+    t.output(&mut std::io::stdout());
 }
 
 #[test]
@@ -843,7 +880,8 @@ enum GlobalValue {
     Constant(Constant),
     Global(Global),
     Function(Function),
-    FunctionDec(FunctionDec)
+    FunctionDec(FunctionDec),
+    Types(Types)
 }
 
 impl Output for GlobalValue {
@@ -855,7 +893,8 @@ impl Output for GlobalValue {
             Constant(c) => c.output(w),
             Global(g) => g.output(w),
             Function(f) => f.output(w),
-            FunctionDec(d) => d.output(w)
+            FunctionDec(d) => d.output(w),
+            Types(t) => t.output(w)
         }
     }
 }

@@ -36,7 +36,8 @@ pub struct Id {
     lindex: usize,
     gindex: usize,
     llabel: usize,
-    locals: HashMap<String, VarType>
+    locals: HashMap<String, VarType>,
+    types: HashMap<String, Types>
 }
 
 impl Id {
@@ -46,7 +47,8 @@ impl Id {
             lindex: 0,
             gindex: 0,
             llabel: 0,
-            locals: HashMap::new()
+            locals: HashMap::new(),
+            types: HashMap::new()
         }
     }
 
@@ -192,14 +194,14 @@ fn type_cast(dtype: &ast::DataType) -> Type
     }
 }
 
-fn types_cast(d: &ast::DataRecord) -> Type
+fn types_cast(d: &ast::DataRecord) -> Types
 {
     let name = &d.name;
     let mut v = Vec::new();
     for attr in &d.attr {
         v.push(type_cast(&attr.1));
     }
-    Type::Types(Rc::new(GlobalId::new(name)), v)
+    Types::new(Rc::new(Register::new(&format!("st.{}", name))), v)
 }
 
 fn constant(c: &mut Context, l: &ast::Literal) -> (Constant, Rc<GlobalId>)
@@ -298,10 +300,7 @@ fn constant_test()
 
     let mut m = Module::new("test");
     let mut id = Id::new();
-    let mut c = Context {
-        m: &mut m,
-        id: &mut id
-    };
+    let mut c = Context::new(&mut m, &mut id, FunInfo::new(&ast::DataType::Unit));
     let l = ast::Literal::String("hello world".into());
     let (c, _) = constant(&mut c, &l);
     c.output(&mut std::io::stdout());
@@ -942,8 +941,10 @@ pub fn main(name: &str, tree: &ast::SyntaxTree) -> Module
         module.append(declare(d));
     }
 
-    for r in &tree.records {
-        types_cast(r.1);
+    for (n, r) in &tree.records {
+        let t = types_cast(r);
+        id.types.insert(n.into(), t.clone());
+        module.append(t);
     }
 
     for f in &tree.functions {
