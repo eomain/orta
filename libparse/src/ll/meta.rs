@@ -208,7 +208,7 @@ mod tests {
     fn field_access_test()
     {
         let tokens = liblex::scan(r#"
-            @.foo.chain().method.calls()
+            @.foo.chain().method().calls()
         "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
