@@ -471,6 +471,7 @@ fn sexpr(info: &mut ParseInfo) -> PResult<ExprList>
 
 fn exprs(info: &mut ParseInfo) -> PResult<ExprList>
 {
+    token!(Token::Lbrace, info.look())?;
     Ok(block(info, |i| {
         let mut e = Vec::new();
         while Some(&Token::Rbrace) != i.look() {
@@ -515,6 +516,7 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
         match token {
             Token::Keyword(k) => {
                 match k {
+                    Key::Define => meta::define(info)?,
                     Key::Extern |
                     Key::Pure |
                     Key::Fun => {

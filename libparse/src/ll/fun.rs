@@ -13,7 +13,7 @@ use libast::FunctionDec;
 use libast::ParamList;
 
 // Parse a single function parameter
-fn param(info: &mut ParseInfo) -> PResult<(String, DataType)>
+pub fn param(info: &mut ParseInfo) -> PResult<(String, DataType)>
 {
     let name = id(info)?;
     token!(Token::Colon, info.next())?;
@@ -54,7 +54,7 @@ fn props(info: &mut ParseInfo) -> FunctionProp
 }
 
 // Parse function return type
-fn rtype(info: &mut ParseInfo) -> PResult<DataType>
+pub fn rtype(info: &mut ParseInfo) -> PResult<DataType>
 {
     if Some(&Token::Colon) == info.look() {
         info.next();

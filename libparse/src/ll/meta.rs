@@ -4,6 +4,8 @@ use crate::PResult;
 use crate::ParseInfo;
 use crate::token_or;
 use super::*;
+use fun::rtype;
+use fun::param;
 use libtoken::Token;
 use libtoken::IntoToken;
 use libtoken::Key;
@@ -11,6 +13,9 @@ use libast::DataType;
 use libast::Types;
 use libast::Unique;
 use libast::DataRecord;
+use libast::Method;
+use libast::MethodAccess;
+use libast::FieldAccess;
 
 pub fn unique(info: &mut ParseInfo) -> PResult<(DataType, String)>
 {
@@ -68,6 +73,76 @@ pub fn structure(info: &mut ParseInfo) -> PResult<DataRecord>
     Ok(DataRecord::new(name, attrs))
 }
 
+// Parse a sequence of method parameters
+fn params(info: &mut ParseInfo) -> PResult<ParamList>
+{
+    token!(Token::Lparen, info.next())?;
+    token!(Token::At, info.next())?;
+    let mut params = ParamList::new();
+    if Some(&Token::Rparen) != info.look() {
+        token!(Token::Comma, info.next())?;
+        let p = param(info)?;
+        params.add(&p.0, p.1);
+
+        while Some(&Token::Comma) == info.look() {
+            info.next();
+            let p = param(info)?;
+            params.add(&p.0, p.1);
+        }
+    }
+    token!(Token::Rparen, info.next())?;
+    Ok(params)
+}
+
+pub fn method(info: &mut ParseInfo) -> PResult<Method>
+{
+    let name = id(info)?;
+    let param = params(info)?;
+    let rtype = rtype(info)?;
+    let expr = if token_is!(Token::Assign, info) {
+        let expr = vec![expr(info)?];
+        token!(Token::Semi, info.next())?;
+        expr
+    } else {
+        exprs(info)?
+    };
+
+    Ok(Method::new(&name, param, rtype, expr))
+}
+
+pub fn field_access(info: &mut ParseInfo) -> PResult<FieldAccess>
+{
+    token!(Token::Period, info.next())?;
+    let field = id(info)?;
+    Ok(FieldAccess::new(&field))
+}
+
+pub fn method_access(info: &mut ParseInfo) -> PResult<MethodAccess>
+{
+    token!(Token::Period, info.next())?;
+    let method = id(info)?;
+    let call = call(info)?;
+    Ok(MethodAccess::new(&method, call))
+}
+
+pub fn define(info: &mut ParseInfo) -> PResult<()>
+{
+    token!(Token::Keyword(Key::Define), info.next())?;
+    let name = id(info)?;
+    token!(Token::Lbrace, info.next())?;
+
+    let mut methods = Vec::new();
+    {
+        while Some(&Token::Rbrace) != info.look() {
+            methods.push(method(info)?);
+        }
+    }
+
+    token!(Token::Rbrace, info.next())?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -95,6 +170,66 @@ mod tests {
             ("x".into(), Integer(S64)),
             ("y".into(), Integer(S64))
         ]);
+    }
+
+    #[test]
+    fn method_test()
+    {
+        let tokens = liblex::scan(r#"
+            pass(@, x: int): int {
+                return x;
+            }
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let m = method(&mut info).unwrap();
+
+        let tokens = liblex::scan(r#"
+            pass(@, x: int): int = return x;
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let m = method(&mut info).unwrap();
+    }
+
+    #[test]
+    fn field_access_test()
+    {
+        let tokens = liblex::scan(r#"
+            .x
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let a = field_access(&mut info).unwrap();
+    }
+
+    #[test]
+    fn method_access_test()
+    {
+        let tokens = liblex::scan(r#"
+            .invoke(a, b * 2)
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let a = field_access(&mut info).unwrap();
+    }
+
+    #[test]
+    fn define_test()
+    {
+        let tokens = liblex::scan(r#"
+            define Point {
+                x(@): int = return x;
+                y(@): int = return y;
+
+                mul(@): int {
+                    return x * y;
+                }
+            }
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let d = define(&mut info).unwrap();
     }
 
     #[test]
