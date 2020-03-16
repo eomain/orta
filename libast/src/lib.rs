@@ -326,7 +326,9 @@ pub enum Expr {
     Return(Return),
     Assign(Box<Assign>),
     Call(CallExpr),
-    Cast(Cast)
+    Cast(Cast),
+    Field(FieldAccess),
+    Method(MethodAccess)
 }
 
 impl Typed for Expr {
@@ -340,6 +342,8 @@ impl Typed for Expr {
             Expr::Return(r) => r.get_type(),
             Expr::Call(c) => c.get_type(),
             Expr::Cast(c) => c.get_type(),
+            Expr::Field(f) => f.get_type(),
+            Expr::Method(m) => m.get_type(),
             _ => unimplemented!()
         }
     }
@@ -530,6 +534,52 @@ impl Typed for CallExpr {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct FieldAccess {
+    pub field: String,
+    pub dtype: DataType
+}
+
+impl FieldAccess {
+    pub fn new(field: &str) -> Self
+    {
+        Self {
+            field: field.into(),
+            dtype: DataType::Unset
+        }
+    }
+}
+
+impl Typed for FieldAccess {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MethodAccess {
+    pub method: String,
+    pub call: CallExpr
+}
+
+impl MethodAccess {
+    pub fn new(method: &str, call: CallExpr) -> Self
+    {
+        Self {
+            method: method.into(),
+            call
+        }
+    }
+}
+
+impl Typed for MethodAccess {
+    fn get_type(&self) -> &DataType
+    {
+        self.call.get_type()
+    }
+}
+
 /// A sequence of expressions
 pub type ExprList = Vec<Expr>;
 
@@ -682,6 +732,27 @@ impl FunctionDec {
             name: name.into(),
             param,
             ret
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Method {
+    pub name: String,
+    pub param: ParamList,
+    pub ret: DataType,
+    pub expr: ExprList
+}
+
+impl Method {
+    pub fn new(name: &str, param: ParamList,
+               ret: DataType, expr: ExprList) -> Self
+    {
+        Self {
+            name: name.into(),
+            param,
+            ret,
+            expr
         }
     }
 }
