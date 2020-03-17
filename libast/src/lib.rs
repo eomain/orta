@@ -154,7 +154,8 @@ pub enum DataType {
     Char,
     String,
     Tuple(Tuple),
-    Array(Box<DataType>),
+    Array(Rc<Array>),
+    Slice(Rc<Slice>),
     Record(Rc<DataRecord>),
     //Record(String),
     Function(Vec<DataType>, Box<DataType>),
@@ -174,6 +175,12 @@ impl fmt::Display for DataType {
             DataType::Float(f) => f.into(),
             DataType::Boolean => "bool",
             DataType::String => "string",
+            DataType::Array(a) => {
+                return write!(f, "{}", *a);
+            },
+            DataType::Slice(s) => {
+                return write!(f, "{}", *s);
+            },
             DataType::Function(a, r) => {
                 if a.len() == 0 {
                     write!(f, "{} -> ", DataType::Unit)?;
@@ -246,6 +253,74 @@ impl From<Unique> for DataType {
 
 pub trait Typed {
     fn get_type(&self) -> &DataType;
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Array {
+    pub size: usize,
+    pub dtype: DataType
+}
+
+impl Array {
+    pub fn new(size: usize, dtype: DataType) -> Self
+    {
+        Self {
+            size, dtype
+        }
+    }
+}
+
+impl From<Array> for DataType {
+    fn from(s: Array) -> Self
+    {
+        DataType::Array(Rc::new(s))
+    }
+}
+
+impl fmt::Display for Array {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "[{}] {}", self.size, &self.dtype)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Slice {
+    pub ptr: DataType
+}
+
+impl Slice {
+    pub fn new(dtype: DataType) -> Self
+    {
+        Self {
+            ptr: dtype
+        }
+    }
+}
+
+impl From<Slice> for DataType {
+    fn from(s: Slice) -> Self
+    {
+        DataType::Slice(Rc::new(s))
+    }
+}
+
+impl fmt::Display for Slice {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "|{}|", &self.ptr)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructLiteral {
+    pub fields: Vec<(String, Expr)>,
+    pub dtype: DataType
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ComplexLiteral {
+        Struct(StructLiteral)
 }
 
 // A variable identifier
@@ -327,8 +402,10 @@ pub enum Expr {
     Assign(Box<Assign>),
     Call(CallExpr),
     Cast(Cast),
+    At(AtExpr),
     Field(FieldAccess),
-    Method(MethodAccess)
+    Method(MethodAccess),
+    Slice(SliceExpr)
 }
 
 impl Typed for Expr {
@@ -342,6 +419,7 @@ impl Typed for Expr {
             Expr::Return(r) => r.get_type(),
             Expr::Call(c) => c.get_type(),
             Expr::Cast(c) => c.get_type(),
+            Expr::At(a) => a.get_type(),
             Expr::Field(f) => f.get_type(),
             Expr::Method(m) => m.get_type(),
             _ => unimplemented!()
@@ -535,16 +613,39 @@ impl Typed for CallExpr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct AtExpr {
+    pub dtype: DataType
+}
+
+impl AtExpr {
+    pub fn new() -> Self
+    {
+        Self {
+            dtype: DataType::Unset
+        }
+    }
+}
+
+impl Typed for AtExpr {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct FieldAccess {
     pub field: String,
+    pub expr: Box<Expr>,
     pub dtype: DataType
 }
 
 impl FieldAccess {
-    pub fn new(field: &str) -> Self
+    pub fn new(field: &str, expr: Expr) -> Self
     {
         Self {
             field: field.into(),
+            expr: Box::new(expr),
             dtype: DataType::Unset
         }
     }
@@ -559,15 +660,15 @@ impl Typed for FieldAccess {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MethodAccess {
-    pub method: String,
+    pub expr: Box<Expr>,
     pub call: CallExpr
 }
 
 impl MethodAccess {
-    pub fn new(method: &str, call: CallExpr) -> Self
+    pub fn new(call: CallExpr, expr: Expr) -> Self
     {
         Self {
-            method: method.into(),
+            expr: Box::new(expr),
             call
         }
     }
@@ -577,6 +678,23 @@ impl Typed for MethodAccess {
     fn get_type(&self) -> &DataType
     {
         self.call.get_type()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SliceExpr {
+    Ptr(Box<Expr>),
+    Len(Box<Expr>)
+}
+
+impl Typed for SliceExpr {
+    fn get_type(&self) -> &DataType
+    {
+        use SliceExpr::*;
+        match self {
+            Ptr(e) |
+            Len(e) => e.get_type()
+        }
     }
 }
 
@@ -757,6 +875,20 @@ impl Method {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Define {
+    pub methods: Vec<Method>
+}
+
+impl Define {
+    pub fn new(methods: Vec<Method>) -> Self
+    {
+        Self {
+            methods
+        }
+    }
+}
+
 // An abstract representation of program,
 // structured by its syntax
 #[derive(Debug)]
@@ -768,7 +900,8 @@ pub struct SyntaxTree {
     pub functions: Vec<Function>,
     pub declarations: Vec<FunctionDec>,
     pub records: HashMap<String, DataRecord>,
-    pub types: HashMap<String, DataType>
+    pub types: HashMap<String, DataType>,
+    pub defines: HashMap<String, Define>
 }
 
 impl SyntaxTree {
@@ -779,7 +912,8 @@ impl SyntaxTree {
             functions: Vec::new(),
             declarations: Vec::new(),
             records: HashMap::new(),
-            types: HashMap::new()
+            types: HashMap::new(),
+            defines: HashMap::new()
         }
     }
 
