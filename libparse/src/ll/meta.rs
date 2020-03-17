@@ -16,6 +16,7 @@ use libast::DataRecord;
 use libast::Method;
 use libast::MethodAccess;
 use libast::FieldAccess;
+use libast::Define;
 
 pub fn unique(info: &mut ParseInfo) -> PResult<(DataType, String)>
 {
@@ -46,6 +47,15 @@ fn attr(info: &mut ParseInfo) -> PResult<(String, DataType)>
     Ok((name, dtype))
 }
 
+// Parse a single attribute expression
+fn attr_expr(info: &mut ParseInfo) -> PResult<(String, Expr)>
+{
+    let name = id(info)?;
+    token!(Token::Colon, info.next())?;
+    let expr = expr(info)?;
+    Ok((name, expr))
+}
+
 // Parse a sequence of attributes
 fn attrs(info: &mut ParseInfo) -> PResult<Vec<(String, DataType)>>
 {
@@ -71,6 +81,25 @@ pub fn structure(info: &mut ParseInfo) -> PResult<DataRecord>
     let name = id(info)?;
     let attrs = attrs(info)?;
     Ok(DataRecord::new(name, attrs))
+}
+
+pub fn struct_literal(info: &mut ParseInfo) -> PResult<()>
+{
+    let name = id(info)?;
+    token!(Token::Lbrace, info.next())?;
+    let mut v = Vec::new();
+    if Some(&Token::Rbrace) != info.look() {
+        let p = attr_expr(info)?;
+        v.push(p);
+
+        while Some(&Token::Comma) == info.look() {
+            info.next();
+            let p = attr_expr(info)?;
+            v.push(p);
+        }
+    }
+    token!(Token::Rbrace, info.next())?;
+    Ok(())
 }
 
 // Parse a sequence of method parameters
@@ -133,11 +162,10 @@ pub fn access(info: &mut ParseInfo, e: Expr) -> PResult<Expr>
     match info.peek() {
         Some(&Token::Lparen) => Ok(Expr::Method(method_access(info, e)?)),
         _ => Ok(Expr::Field(field_access(info, e)?)),
-        //_ => Err("expected either '.' or '('".into())
     }
 }
 
-pub fn define(info: &mut ParseInfo) -> PResult<()>
+pub fn define(info: &mut ParseInfo) -> PResult<(Define, String)>
 {
     token!(Token::Keyword(Key::Define), info.next())?;
     let name = id(info)?;
@@ -152,7 +180,7 @@ pub fn define(info: &mut ParseInfo) -> PResult<()>
 
     token!(Token::Rbrace, info.next())?;
 
-    Ok(())
+    Ok((Define::new(methods), name))
 }
 
 #[cfg(test)]
@@ -182,6 +210,20 @@ mod tests {
             ("x".into(), Integer(S64)),
             ("y".into(), Integer(S64))
         ]);
+    }
+
+    #[test]
+    fn struct_test()
+    {
+        let tokens = liblex::scan(r#"
+            Point {
+                x: 0 + 1,
+                y: 0
+            }
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let s = struct_literal(&mut info).unwrap();
     }
 
     #[test]
