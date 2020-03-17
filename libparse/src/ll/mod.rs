@@ -1,9 +1,11 @@
 
+mod array;
 mod branch;
 mod expr;
 mod fun;
 mod iter;
 mod meta;
+mod slice;
 
 use std::rc::Rc;
 use super::arithmetic::precedence;
@@ -15,6 +17,7 @@ use libtoken::IntoToken;
 use libtoken::Key;
 use libtoken::Prim;
 use libtoken::Operator;
+use libtoken::Operator::Bitwise;
 use libtoken::ArithmeticOperator as AOp;
 use libtoken::LogicalOperator as LOp;
 use libtoken::RelationalOperator as ROp;
@@ -68,9 +71,15 @@ fn unit_test()
 fn type_name(info: &mut ParseInfo) -> PResult<DataType>
 {
     let msg = "expected type";
-    if let Some(&Token::Lparen) = info.look() {
-        return Ok(unit(info)?);
+    match info.look() {
+        Some(&Token::Lparen) => return Ok(unit(info)?),
+        Some(&Token::Lsqr) => return Ok(array::array(info)?),
+        Some(&Token::Operator(Bitwise(BOp::Or))) => {
+            return Ok(slice::slice(info)?);
+        },
+        _ => ()
     }
+
     let token = info.next()
                     .ok_or(Error::from(msg))?;
     Ok(match token {
@@ -188,6 +197,7 @@ fn cast_test()
 fn types(info: &mut ParseInfo) -> PResult<DataType>
 {
     use Operator::*;
+    use BOp::Xor;
     let mut pcount = 0;
     while let Some(&Token::Operator(Bitwise(Xor))) = info.look() {
         pcount += 1;
@@ -546,7 +556,10 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
         match token {
             Token::Keyword(k) => {
                 match k {
-                    Key::Define => meta::define(info)?,
+                    Key::Define => {
+                        let (d, n) = meta::define(info)?;
+                        tree.defines.insert(n, d);
+                    },
                     Key::Extern |
                     Key::Pure |
                     Key::Fun => {
