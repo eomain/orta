@@ -10,6 +10,7 @@ use libtoken::IntoToken;
 use libtoken::Key;
 use libast::Array;
 
+// Get the size value of the array
 fn size(info: &mut ParseInfo) -> PResult<usize>
 {
     match info.next() {
@@ -18,13 +19,25 @@ fn size(info: &mut ParseInfo) -> PResult<usize>
     }
 }
 
-pub fn array(info: &mut ParseInfo) -> PResult<DataType>
+// A single array subscript
+fn subscript(info: &mut ParseInfo) -> PResult<usize>
 {
     token!(Token::Lsqr, info.next())?;
     let size = size(info)?;
     token!(Token::Rsqr, info.next())?;
+    Ok(size)
+}
+
+// Parse an array type definition
+pub fn array(info: &mut ParseInfo) -> PResult<DataType>
+{
+    let mut sizes = Vec::new();
+    sizes.push(subscript(info)?);
+    while Some(&Token::Lsqr) == info.look() {
+        sizes.push(subscript(info)?);
+    }
     let dtype = types(info)?;
-    Ok(DataType::from(Array::new(size, dtype)))
+    Ok(DataType::from(Array::new(sizes, dtype)))
 }
 
 #[cfg(test)]
@@ -39,6 +52,19 @@ mod tests {
 
         let tokens = liblex::scan(r#"
             [5] |[2] ^int|
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let a = array(&mut info).unwrap();
+        println!("{}", a);
+    }
+
+    #[test]
+    fn multi_array_test()
+    {
+
+        let tokens = liblex::scan(r#"
+            [3][3] i8
         "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
