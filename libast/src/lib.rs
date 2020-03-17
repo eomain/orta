@@ -257,15 +257,15 @@ pub trait Typed {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Array {
-    pub size: usize,
+    pub sizes: Vec<usize>,
     pub dtype: DataType
 }
 
 impl Array {
-    pub fn new(size: usize, dtype: DataType) -> Self
+    pub fn new(sizes: Vec<usize>, dtype: DataType) -> Self
     {
         Self {
-            size, dtype
+            sizes, dtype
         }
     }
 }
@@ -280,7 +280,10 @@ impl From<Array> for DataType {
 impl fmt::Display for Array {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
     {
-        write!(f, "[{}] {}", self.size, &self.dtype)
+        for size in &self.sizes {
+            write!(f, "[{}]", size)?
+        }
+        write!(f, " {}", &self.dtype)
     }
 }
 
