@@ -1,13 +1,16 @@
 
 mod cast;
+mod method;
 mod ret;
 
+use std::rc::Rc;
 use super::Error;
 use libsym::Error as SError;
 use libsym::Scope;
 use libsym::TypeInfo;
 use libast::Typed;
 use libast::DataType;
+use libast::DataRecord;
 use libast::IntType;
 use libast::FloatType;
 use libast::{Literal, Variable};
@@ -19,6 +22,7 @@ use libast::{
     CompExpr, LogicalExpr
 };
 use libast::Function;
+pub use method::mpass;
 
 fn type_equal<T>(a: &T, b: &T) -> bool
     where T: Typed
@@ -200,13 +204,13 @@ fn call(info: &mut Info, s: &mut Scope,
     let (args, ret) = match s.find_type(&c.name) {
         Err(e) => return Err(e.into()),
         Ok((sig, _)) => {
-            if let DataType::Function(v, r) = &sig {
+            if let DataType::Function(v, r) = &sig.derived() {
                 if var {
                     c.var = Some(sig.clone());
                 }
                 (v.clone(), (**r).clone())
             } else {
-                return Err(error!("not a function!"));
+                return Err(error!("`{}` is not a function", &c.name));
             }
         }
     };
@@ -325,6 +329,9 @@ fn expr(i: &mut Info, s: &mut Scope,
         Expr::Assign(a) => assign(i, s, a)?,
         Expr::Call(c) => call(i, s, c, expt)?,
         Expr::Cast(c) => cast::cast(i, s, c, expt)?,
+        Expr::At(a) => method::at(i, s, a, expt)?,
+        Expr::Field(f) => method::field(i, s, f, expt)?,
+        Expr::Method(m) => method::method(i, s, m, expt)?,
         _ => unimplemented!()
     }
     Ok(())
@@ -434,7 +441,8 @@ pub struct Info {
     ret: DataType,
     // if a second pass is needed
     pass: bool,
-    pcount: usize
+    pcount: usize,
+    at: Option<Rc<DataRecord>>
 }
 
 impl Info {
@@ -444,7 +452,8 @@ impl Info {
             name: name.into(),
             ret,
             pass: false,
-            pcount: 1
+            pcount: 1,
+            at: None
         }
     }
 
