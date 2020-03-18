@@ -272,6 +272,47 @@ fn number(lexer: &mut Lexer) -> Token
     lexer.string.parse::<usize>().unwrap().token()
 }
 
+fn binary(lexer: &mut Lexer) -> Result<Token, Error>
+{
+    let msg = "expected binary digit";
+    match lexer.ahead() {
+        None => return Err(Error::Custom(msg)),
+        Some(c) => if !numeric(c) {
+            return Err(Error::Custom(msg));
+        }
+    }
+
+    lexer.next();
+    lexer.string.clear();
+    lexer.read_while(numeric);
+
+    Ok(usize::from_str_radix(&lexer.string, 2).unwrap().token())
+}
+
+fn octal(lexer: &mut Lexer) -> Token
+{
+    lexer.string.clear();
+    lexer.read_while(numeric);
+    usize::from_str_radix(&lexer.string, 8).unwrap().token()
+}
+
+fn hex(lexer: &mut Lexer) -> Result<Token, Error>
+{
+    let msg = "expected hexadecimal";
+    match lexer.ahead() {
+        None => return Err(Error::Custom(msg)),
+        Some(c) => if !alpha(c) && !numeric(c) {
+            return Err(Error::Custom(msg));
+        }
+    }
+
+    lexer.next();
+    lexer.string.clear();
+    lexer.read_while(|c| alpha(c) || numeric(c));
+
+    Ok(usize::from_str_radix(&lexer.string, 16).unwrap().token())
+}
+
 fn escape(s: String, o: &str, n: &str) -> String
 {
     match s.rfind(o) {
@@ -423,8 +464,15 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 '0' => {
                     if let Some(c) = lexer.ahead() {
                         match c {
-                            '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' =>
-                                return Err(Error::Custom("found a digit following `0`")),
+                            '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => octal(&mut lexer),
+                            'b' => {
+                                lexer.next();
+                                binary(&mut lexer)?
+                            },
+                            'x' => {
+                                lexer.next();
+                                hex(&mut lexer)?
+                            },
                             '.' => number(&mut lexer),
                             _ => 0.token()
                         }
@@ -622,5 +670,19 @@ mod tests {
         assert_eq!(tokens.next(), Some(&Comp.token()));
         assert_eq!(tokens.next(), Some(&Lshift.token()));
         assert_eq!(tokens.next(), Some(&Rshift.token()));
+    }
+
+    #[test]
+    fn numeric_base()
+    {
+        let input = r#"
+            0b101 0100 0xFF
+        "#.chars().collect();
+        let stream = scan(input).unwrap();
+
+        let mut tokens = stream.iter();
+        assert_eq!(tokens.next(), Some(&5.token()));
+        assert_eq!(tokens.next(), Some(&64.token()));
+        assert_eq!(tokens.next(), Some(&255.token()));
     }
 }
