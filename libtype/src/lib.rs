@@ -149,6 +149,14 @@ pub fn init(meta: TypeMeta, ast: &mut SyntaxTree) -> Result<(), Error>
     update_functions(global, &mut ast.functions)?;
     insert_functions(global, &ast.functions);
 
+    for (n, d) in &mut ast.defines {
+        let rec = ast.records.get(n).unwrap();
+        for m in &mut d.methods {
+            let mut s = global.scope();
+            check::mpass(&mut s, m, rec.clone())?;
+        }
+    }
+
     for f in &mut ast.functions {
         let mut s = global.scope();
         check::fpass(&mut s, f)?;
