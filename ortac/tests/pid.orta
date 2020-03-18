@@ -1,0 +1,16 @@
+
+/* define a unique type, `pid` that can
+   accept the same values as an `i32` */
+unique pid = i32;
+
+/* function to return the process id as a `pid` */
+foreign fun getpid(): pid;
+
+fun main()
+{
+    print("pid:");
+    /* variable `p`, of type `pid` set to the process id */
+    let p = getpid();
+    /* cast `pid` type into an `int` */
+    iprint((int)p);
+}
