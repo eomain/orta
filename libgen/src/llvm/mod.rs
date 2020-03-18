@@ -396,7 +396,7 @@ pub enum Operation {
     Br(Value, Register, Register),
     BrCond(Register),
     Call(Option<Register>, Value, Option<Vec<(Type, Value)>>),
-    GetElPtr(Register, (Type, Rc<GlobalId>), Vec<(Type, Value)>),
+    GetElPtr(Register, (Type, Value), Vec<(Type, Value)>),
     Load(Register, Type, Rc<Register>),
     Mul(Register, Value, Value),
     Fmul(Register, Value, Value),
@@ -518,7 +518,7 @@ impl Operation {
             },
             GetElPtr(_, ptr, indexes) => {
                 let p = param_val(indexes);
-                Some(format!(", {} {}, {}", ptr.0, ptr.1.id, p))
+                Some(format!(", {} {}, {}", ptr.0, ptr.1, p))
             },
             IntToPtr(_, v, t) => {
                 Some(format!("{} to {}*", v, t))
