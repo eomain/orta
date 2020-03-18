@@ -31,8 +31,8 @@ pub fn field(c: &mut Context, f: &ast::FieldAccess,
     let reg = c.id.register();
     let dtype = type_cast(&f.dtype);
     let op = Operation::Load(reg.clone(), dtype.clone(), Rc::new(r));
-    v.push(Inst::new(op, dtype));
-    Some(vec![(t, Value::Reg(reg))])
+    v.push(Inst::new(op, dtype.clone()));
+    Some(vec![(dtype, Value::Reg(reg))])
 }
 
 // Convert an AST method into an LLVM function
