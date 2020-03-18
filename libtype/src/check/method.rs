@@ -52,16 +52,15 @@ pub fn mpass(s: &mut Scope, m: &mut Method, d: DataRecord) -> Result<(), Error>
     let mut info = Info::new(&m.name, m.ret.clone());
     info.at = Some(Rc::new(d));
 
-    //println!("{:?}", m);
     methods(&mut info, s, m)?;
     if info.second_pass() {
         info.pcount += 1;
         methods(&mut info, s, m)?;
     }
 
-    /*if !ret::returns(&mut info, s, f) {
-        return Err(error!("method: `{}`: expected return statement", &f.name));
-    }*/
+    if !ret::method_returns(&mut info, s, m) {
+        return Err(error!("method: `{}`: expected return statement", &m.name));
+    }
 
     Ok(())
 }
