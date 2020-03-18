@@ -1,9 +1,12 @@
 
 mod cast;
+mod method;
+mod slice;
 
 use std::rc::Rc;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use super::llvm;
 use super::llvm::*;
 use super::libast as ast;
 use ast::Typed;
@@ -174,6 +177,12 @@ fn type_cast(dtype: &ast::DataType) -> Type
         },
         Boolean => Type::Int(1),
         String => Type::Pointer(Box::new(Type::Int(8))),
+        Slice(s) => {
+            Type::from(&slice::slice_type(&*s))
+        },
+        Record(r) => {
+            Type::from(&types_cast(&**r))
+        },
         Function(v, r) => {
             let r = Box::new(type_cast(r));
             let v = v.iter().map(|a| type_cast(a)).collect();
@@ -211,7 +220,7 @@ fn constant(c: &mut Context, l: &ast::Literal) -> (Constant, Rc<GlobalId>)
         String(s) => {
             let id = c.id.global();
             let rc = Rc::new(id);
-            (Constant::String(rc.clone(), s.clone()), rc.clone())
+            (Constant::String(rc.clone(), s.clone()), rc)
         }
         _ => unreachable!()
     }
@@ -236,10 +245,12 @@ fn literal(c: &mut Context, l: &ast::Literal,
         },
         Float(f) => (type_cast(t), Value::Float(*f)),
         String(s) => {
+            use ast::DataType::Slice;
+
             let id = c.id.register();
             let (constant, gid) = constant(c, l);
             let stype = constant.get_type();
-            let ptr = (Type::Pointer(Box::new(stype.clone())), gid);
+            let ptr = (Type::Pointer(Box::new(stype.clone())), Value::Global(gid));
             let indexes = vec![
                 (Type::Int(32), Value::Int(0)),
                 (Type::Int(32), Value::Int(0))
@@ -673,6 +684,8 @@ fn expr(c: &mut Context, e: &ast::Expr,
         Assign(a) => { assign(c, a, v); None },
         Call(e) => call(c, e, v),
         Cast(e) => cast::cast(c, e, v),
+        At(a) => method::at(c, a, v),
+        Field(f) => method::field(c, f, v),
         _ => unimplemented!()
     }
 }
@@ -945,6 +958,13 @@ pub fn main(name: &str, tree: &ast::SyntaxTree) -> Module
         let t = types_cast(r);
         id.types.insert(n.into(), t.clone());
         module.append(t);
+    }
+
+    for (n, d) in &tree.defines {
+        let mut fun = method::define(&mut id, &mut module, n, d);
+        while fun.len() > 0 {
+            module.append(fun.remove(0));
+        }
     }
 
     for f in &tree.functions {
