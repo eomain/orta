@@ -1,0 +1,10 @@
+
+fun main()
+{
+    /* using binary literal */
+    iprint(0b1010);
+    /* using octal literal */
+    iprint(000125);
+    /* using hexadecimal literal */
+    iprint(0x0100);
+}
