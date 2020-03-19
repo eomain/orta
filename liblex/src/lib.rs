@@ -31,6 +31,12 @@ fn numeric(c: char) -> bool
     c.is_ascii_digit()
 }
 
+#[inline]
+fn base_2(c: char) -> bool
+{
+    (c == '0' || c == '1')
+}
+
 fn comment(lexer: &mut Lexer)
 {
     while let Some(c) = lexer.next() {
@@ -277,14 +283,14 @@ fn binary(lexer: &mut Lexer) -> Result<Token, Error>
     let msg = "expected binary digit";
     match lexer.ahead() {
         None => return Err(Error::Custom(msg)),
-        Some(c) => if !numeric(c) {
+        Some(c) => if !base_2(c) {
             return Err(Error::Custom(msg));
         }
     }
 
     lexer.next();
     lexer.string.clear();
-    lexer.read_while(numeric);
+    lexer.read_while(base_2);
 
     Ok(usize::from_str_radix(&lexer.string, 2).unwrap().token())
 }
