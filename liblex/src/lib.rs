@@ -470,7 +470,7 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 '0' => {
                     if let Some(c) = lexer.ahead() {
                         match c {
-                            '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => octal(&mut lexer),
+                            '0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => octal(&mut lexer),
                             'b' => {
                                 lexer.next();
                                 binary(&mut lexer)?
