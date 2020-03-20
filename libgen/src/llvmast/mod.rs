@@ -1,5 +1,6 @@
 
 mod cast;
+mod complex;
 mod method;
 mod slice;
 
@@ -111,7 +112,8 @@ pub struct FunInfo {
     retval: Option<Register>,
     rtype: bool,
     count: usize,
-    total: usize
+    total: usize,
+    temp: Option<Register>
 }
 
 impl FunInfo {
@@ -122,7 +124,8 @@ impl FunInfo {
             retval: None,
             rtype: Type::Void != type_cast(d),
             count: 0,
-            total: 0
+            total: 0,
+            temp: None
         }
     }
 
@@ -145,6 +148,17 @@ impl<'a> Context<'a> {
     {
         Self {
             m, id, info
+        }
+    }
+
+    fn get_reg(&mut self) -> Register
+    {
+        if let Some(temp) = &self.info.temp {
+            let r = temp.clone();
+            self.info.temp = None;
+            r
+        } else {
+            self.id.register()
         }
     }
 }
@@ -176,6 +190,14 @@ fn type_cast(dtype: &ast::DataType) -> Type
             }
         },
         Boolean => Type::Int(1),
+        Array(a) => {
+            let sizes: Vec<_> = a.sizes.iter().rev().collect();
+            let mut dtype = type_cast(&a.dtype);
+            for s in sizes {
+                dtype = Type::Array(*s, Box::new(dtype));
+            }
+            dtype
+        },
         String => Type::Pointer(Box::new(Type::Int(8))),
         Slice(s) => {
             Type::from(&slice::slice_type(&*s))
@@ -300,7 +322,7 @@ fn value(c: &mut Context, val: &ast::Value,
     Some(vec![match val {
         Unit => unimplemented!(),
         Literal(l, t) => literal(c, l, &t, v),
-        Complex(c) => unimplemented!(),
+        Complex(e) => complex::complex(c, e, v),
         Variable(var) => variable(c, var, v)
     }])
 }
@@ -688,6 +710,7 @@ fn expr(c: &mut Context, e: &ast::Expr,
         Cast(e) => cast::cast(c, e, v),
         At(a) => method::at(c, a, v),
         Field(f) => method::field(c, f, v),
+        Index(i) => Some(vec![complex::index(c, i, v)]),
         _ => unimplemented!()
     }
 }
@@ -703,15 +726,20 @@ fn assign_ptr(c: &mut Context, t: Type, val: Value, v: &mut Vec<Inst>) -> Value
 fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
 {
     let l = c.id.local(&a.id);
-    let t = type_cast(&a.dtype);
+    let complex = a.dtype.complex();
 
-    if let Some(expr) = expr(c, &a.expr, v) {
-        let (t, val) = &expr[0];
-        let mut val = val.clone();
+    if complex {
+        let reg = Register::from(&l);
+        c.id.insert(reg.as_ref(), VarType::Val);
+        c.info.temp = Some(reg.clone());
+    }
+
+    let (t, mut val) = unary_expr(c, &a.expr, v);
+    if !complex {
         let r = Rc::new(Register::from(&l));
         let alloc = Operation::Alloca(r.clone(), None);
         v.push(Inst::new(alloc, t.clone()));
-        if let Type::Pointer(t) = t {
+        if let Type::Pointer(t) = &t {
             match val {
                 Value::Int(_) |
                 Value::Uint(_) => { val = assign_ptr(c, *t.clone(), val.clone(), v); },
@@ -722,7 +750,7 @@ fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
         v.push(Inst::new(store, t.clone()));
         c.id.insert((*r).as_ref(), VarType::Ref);
     } else {
-        unreachable!();
+        c.info.temp = None;
     }
 }
 
