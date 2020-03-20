@@ -227,6 +227,13 @@ fn types(info: &mut ParseInfo) -> PResult<DataType>
 fn value(info: &mut ParseInfo) -> PResult<Value>
 {
     let msg = "expected variable or literal";
+
+    match info.peek() {
+        Some(&Token::Lbrace) => {
+            return Ok(Value::from(meta::struct_literal(info)?));
+        },
+        _ => ()
+    }
     let mut token = info.next()
                     .ok_or(Error::from(msg))?;
 
@@ -410,6 +417,7 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
     let token = info.look()
                     .ok_or(Error::from(msg))?;
     let mut e = match token {
+        Token::Lsqr => Ok(Expr::Value(Value::from(array::literal(info)?))),
         Token::At => Ok(at(info)?),
         Token::Symbol(_) => {
             if Some(&Token::Lparen) == info.peek() {
