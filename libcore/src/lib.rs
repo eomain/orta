@@ -112,7 +112,7 @@ fn parse(tokens: TokenStream) -> Result<SyntaxTree, Error>
 {
     match libparse::construct(tokens) {
         Err(e) => {
-            eprintln!("error: ");
+            eprintln!("error: {}", e);
             Err(Error::Parse)
         },
         Ok(ast) => Ok(ast)
