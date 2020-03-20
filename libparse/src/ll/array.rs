@@ -4,11 +4,12 @@ use crate::PResult;
 use crate::ParseInfo;
 use crate::token_or;
 use super::*;
-use super::expr::bexpr;
 use libtoken::Token;
 use libtoken::IntoToken;
 use libtoken::Key;
 use libast::Array;
+use libast::ArrayLiteral;
+use libast::ComplexLiteral as Complex;
 
 // Get the size value of the array
 fn size(info: &mut ParseInfo) -> PResult<usize>
@@ -38,6 +39,20 @@ pub fn array(info: &mut ParseInfo) -> PResult<DataType>
     }
     let dtype = types(info)?;
     Ok(DataType::from(Array::new(sizes, dtype)))
+}
+
+// Parse an array literal
+pub fn literal(info: &mut ParseInfo) -> PResult<Complex>
+{
+    token!(Token::Lsqr, info.next())?;
+    let mut exprs = Vec::new();
+    exprs.push(expr(info)?);
+    while Some(&Token::Comma) == info.look() {
+        info.next();
+        exprs.push(expr(info)?);
+    }
+    token!(Token::Rsqr, info.next())?;
+    Ok(Complex::from(ArrayLiteral::new(exprs)))
 }
 
 #[cfg(test)]
@@ -70,5 +85,18 @@ mod tests {
         let mut info = ParseInfo::new(tokens);
         let a = array(&mut info).unwrap();
         println!("{}", a);
+    }
+
+    #[test]
+    fn array_lit_test()
+    {
+
+        let tokens = liblex::scan(r#"
+            [ 1, 3, 5 ]
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let l = literal(&mut info).unwrap();
+        println!("{:?}", l);
     }
 }
