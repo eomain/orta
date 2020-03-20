@@ -39,6 +39,7 @@ pub enum Key {
     Else,
     While,
     For,
+    Loop,
     True,
     False,
     Return,
