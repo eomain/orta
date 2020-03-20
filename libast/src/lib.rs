@@ -486,6 +486,7 @@ pub enum Expr {
     Comp(CompExpr),
     Logical(LogicalExpr),
     If(IfExpr),
+    Loop(Loop),
     While(WhileExpr),
     Return(Return),
     Assign(Box<Assign>),
@@ -662,6 +663,20 @@ impl IfExpr {
             cond,
             expr,
             other
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Loop {
+    pub expr: ExprList
+}
+
+impl Loop {
+    pub fn new(expr: ExprList) -> Self
+    {
+        Self {
+            expr
         }
     }
 }
