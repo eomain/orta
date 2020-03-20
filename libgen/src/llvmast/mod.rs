@@ -815,8 +815,6 @@ fn conditional(c: &mut Context, br: &ast::IfExpr, v: &mut Vec<Inst>)
 fn loops(c: &mut Context, w: &ast::Loop, v: &mut Vec<Inst>)
 {
     let (br, brop) = c.id.label();
-    let (start, sop) = c.id.label();
-    let (ends, endop) = c.id.label();
 
     let op = Operation::BrCond(Register::new(&br));
     v.push(Inst::new(op, Type::None));
