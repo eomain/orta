@@ -1,5 +1,6 @@
 
 mod cast;
+mod complex;
 mod method;
 mod ret;
 
@@ -19,7 +20,7 @@ use libast::{Assign, Return};
 use libast::{
     Expr, BinaryExpr, BoolExpr,
     CallExpr, IfExpr, WhileExpr,
-    CompExpr, LogicalExpr
+    CompExpr, LogicalExpr, Loop
 };
 use libast::Function;
 pub use method::mpass;
@@ -189,6 +190,7 @@ fn value(i: &mut Info, s: &mut Scope,
                 Value::Literal(l, lit)
             }
         },
+        Value::Complex(c) => return complex::complex(i, s, c, expt),
         Value::Variable(v) => return variable(i, s, v, expt)
     };
     Ok(())
@@ -324,6 +326,7 @@ fn expr(i: &mut Info, s: &mut Scope,
         Expr::Comp(c) => cmp(i, s, c, expt)?,
         Expr::Logical(l) => log(i, s, l, expt)?,
         Expr::If(f) => conditional(i, s, f, expt)?,
+        Expr::Loop(l) => loops(i, s, l, expt)?,
         Expr::While(w) => loop_while(i, s, w, expt)?,
         Expr::Return(r) => ret(i, s, r, i.ret.clone())?,
         Expr::Assign(a) => assign(i, s, a)?,
@@ -384,12 +387,22 @@ fn conditional(i: &mut Info, s: &mut Scope,
     Ok(())
 }
 
-fn loop_while(i: &mut Info, s: &mut Scope, br: &mut WhileExpr,
+fn loops(i: &mut Info, s: &mut Scope, lp: &mut Loop,
+         expt: Option<DataType>) -> Result<(), Error>
+{
+    let mut s = Scope::new(Some(s));
+    for e in &mut lp.expr {
+        expr(i, &mut s, e, None)?;
+    }
+    Ok(())
+}
+
+fn loop_while(i: &mut Info, s: &mut Scope, wl: &mut WhileExpr,
               expt: Option<DataType>) -> Result<(), Error>
 {
     let mut s = Scope::new(Some(s));
-    bexpr(i, &mut s, &mut br.cond, Some(DataType::Boolean))?;
-    for e in &mut br.expr {
+    bexpr(i, &mut s, &mut wl.cond, Some(DataType::Boolean))?;
+    for e in &mut wl.expr {
         expr(i, &mut s, e, None)?;
     }
     Ok(())

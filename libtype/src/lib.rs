@@ -12,6 +12,7 @@ use libsym::Table;
 use libsym::TypeInfo;
 use libast::Variable;
 use libast::DataType;
+use libast::DataRecord;
 use libast::Function;
 use libast::FunctionDec;
 use libast::SyntaxTree;
@@ -106,6 +107,13 @@ fn update_declarations(table: &mut Table,
     Ok(())
 }
 
+fn insert_record(global: &mut Table, types: &HashMap<String, DataRecord>)
+{
+    for (k, t) in types {
+        global.insert(k, (TypeInfo::Record(t.clone()), true));
+    }
+}
+
 /*fn update_types(table: &mut Table,
                 types: &mut HashMap<String, DataType>) -> Result<(), Error>
 {
@@ -140,6 +148,7 @@ pub fn init(meta: TypeMeta, ast: &mut SyntaxTree) -> Result<(), Error>
     let mut env = Env::new();
     let global = &mut env.table;
 
+    insert_record(global, &ast.records);
     //update_types(global, &mut ast.types)?;
     insert_types(global, &ast.types);
 
@@ -150,6 +159,7 @@ pub fn init(meta: TypeMeta, ast: &mut SyntaxTree) -> Result<(), Error>
     insert_functions(global, &ast.functions);
 
     for (n, d) in &mut ast.defines {
+        // TODO:
         let rec = ast.records.get(n).unwrap();
         for m in &mut d.methods {
             let mut s = global.scope();
