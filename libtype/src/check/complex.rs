@@ -11,7 +11,7 @@ pub fn structs(i: &mut Info, s: &mut Scope, c: &mut Struct,
         Err(_) => return Err(error!("undefined type struct `{}`", &c.name)),
         Ok(s) => s
     };
-    unimplemented!()
+    unimplemented!();
     Ok(())
 }
 
