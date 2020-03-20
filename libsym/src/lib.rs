@@ -3,6 +3,7 @@ mod librt;
 
 use std::collections::HashMap;
 use libast::DataType;
+use libast::DataRecord;
 use libast::ParamList;
 
 // The symbol used to refernce the type information
@@ -41,7 +42,8 @@ impl From<&Error> for String {
 pub enum TypeInfo {
     Var(DataType),
     Function(Signature),
-    Named(DataType)
+    Named(DataType),
+    Record(DataRecord)
 }
 
 impl TypeInfo {
@@ -118,7 +120,8 @@ impl<'a> Scope<'a> {
                     TypeInfo::Var(dt) | TypeInfo::Named(dt) => Ok(dt.clone()),
                     TypeInfo::Function((v, r)) => {
                         Ok(DataType::Function(v.clone(), Box::new(r.clone())))
-                    }
+                    },
+                    TypeInfo::Record(r) => Ok(DataType::from(r.clone()))
                 }
             }
         }
@@ -133,7 +136,8 @@ impl<'a> Scope<'a> {
                     TypeInfo::Var(dt) | TypeInfo::Named(dt) => Ok((dt.clone(), t.1)),
                     TypeInfo::Function((v, r)) => {
                         Ok((DataType::Function(v.clone(), Box::new(r.clone())), t.1))
-                    }
+                    },
+                    TypeInfo::Record(r) => Ok((DataType::from(r.clone()), t.1))
                 }
             }
         }
@@ -160,6 +164,20 @@ impl<'a> Scope<'a> {
             Some((t, _)) => {
                 if let TypeInfo::Named(t) = t {
                     Ok(&t)
+                } else {
+                    Err(Error::NotNamed(id.into()))
+                }
+            }
+        }
+    }
+
+    pub fn find_record_type(&self, id: &str) -> Result<&DataRecord, Error>
+    {
+        match self.find(id) {
+            None => Err(Error::Undefined(id.into())),
+            Some((t, _)) => {
+                if let TypeInfo::Record(r) = t {
+                    Ok(&r)
                 } else {
                     Err(Error::NotNamed(id.into()))
                 }
