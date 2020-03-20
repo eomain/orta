@@ -45,6 +45,7 @@ pub enum Key {
     Return,
     Let,
     Var,
+    Const,
     Type,
     Foreign,
     Extern,
