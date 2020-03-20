@@ -251,6 +251,13 @@ impl From<Unique> for DataType {
     }
 }
 
+impl From<DataRecord> for DataType {
+    fn from(r: DataRecord) -> Self
+    {
+        DataType::Record(Rc::new(r))
+    }
+}
+
 pub trait Typed {
     fn get_type(&self) -> &DataType;
 }
@@ -316,14 +323,89 @@ impl fmt::Display for Slice {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ArrayLiteral {
+    pub elements: Vec<Expr>,
+    pub dtype: DataType
+}
+
+impl ArrayLiteral {
+    pub fn new(elements: Vec<Expr>) -> Self
+    {
+        Self {
+            elements,
+            dtype: DataType::Unset
+        }
+    }
+}
+
+impl Typed for ArrayLiteral {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
+    }
+}
+
+impl From<ArrayLiteral> for ComplexLiteral {
+    fn from(a: ArrayLiteral) -> Self
+    {
+        ComplexLiteral::Array(a)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructLiteral {
+    pub name: String,
     pub fields: Vec<(String, Expr)>,
     pub dtype: DataType
 }
 
+impl StructLiteral {
+    pub fn new(name: &str, fields: Vec<(String, Expr)>) -> Self
+    {
+        Self {
+            name: name.into(),
+            fields,
+            dtype: DataType::Unset
+        }
+    }
+}
+
+impl Typed for StructLiteral {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
+    }
+}
+
+impl From<StructLiteral> for ComplexLiteral {
+    fn from(s: StructLiteral) -> Self
+    {
+        ComplexLiteral::Struct(s)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ComplexLiteral {
-        Struct(StructLiteral)
+    Array(ArrayLiteral),
+    Struct(StructLiteral)
+}
+
+impl Typed for ComplexLiteral {
+    fn get_type(&self) -> &DataType
+    {
+        use ComplexLiteral::*;
+        match self {
+            Array(a) => a.get_type(),
+            Struct(s) => s.get_type(),
+        }
+    }
+}
+
+impl From<ComplexLiteral> for Value {
+    fn from(c: ComplexLiteral) -> Self
+    {
+        Value::Complex(c)
+    }
 }
 
 // A variable identifier
@@ -341,7 +423,9 @@ impl Variable {
             dtype: DataType::Unset
         }
     }
+}
 
+impl Typed for Variable {
     fn get_type(&self) -> &DataType
     {
         &self.dtype
@@ -355,6 +439,7 @@ pub enum Value {
     /// returns an empty value `()`
     Unit,
     Literal(Literal, DataType),
+    Complex(ComplexLiteral),
     Variable(Variable)
 }
 
@@ -364,6 +449,7 @@ impl Typed for Value {
         match self {
             Value::Unit => unimplemented!(),
             Value::Literal(_, t) => t,
+            Value::Complex(c) => c.get_type(),
             Value::Variable(v) => v.get_type()
         }
     }
@@ -426,6 +512,40 @@ impl Typed for Expr {
             Expr::Field(f) => f.get_type(),
             Expr::Method(m) => m.get_type(),
             _ => unimplemented!()
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Address {
+    pub id: String,
+    pub dtype: DataType
+}
+
+impl Address {
+    pub fn new(id: &str, dtype: DataType) -> Self
+    {
+        Self {
+            id: id.into(),
+            dtype: DataType::Pointer(Rc::new(dtype))
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Declare {
+    pub id: String,
+    pub dtype: DataType,
+    pub assign: Option<Assign>
+}
+
+impl Declare {
+    pub fn new(id: &str, dtype: DataType, assign: Option<Assign>) -> Self
+    {
+        Self {
+            id: id.into(),
+            dtype,
+            assign
         }
     }
 }
@@ -892,6 +1012,17 @@ impl Define {
     }
 }
 
+#[derive(Debug)]
+pub enum Definition {
+    Function(Function),
+    Declare(FunctionDec),
+    Record(String, DataRecord),
+    Types(String, DataType),
+    Define(String, Define)
+}
+
+
+
 // An abstract representation of program,
 // structured by its syntax
 #[derive(Debug)]
@@ -904,7 +1035,8 @@ pub struct SyntaxTree {
     pub declarations: Vec<FunctionDec>,
     pub records: HashMap<String, DataRecord>,
     pub types: HashMap<String, DataType>,
-    pub defines: HashMap<String, Define>
+    pub defines: HashMap<String, Define>,
+    pub definition: Vec<Definition>
 }
 
 impl SyntaxTree {
@@ -916,8 +1048,15 @@ impl SyntaxTree {
             declarations: Vec::new(),
             records: HashMap::new(),
             types: HashMap::new(),
-            defines: HashMap::new()
+            defines: HashMap::new(),
+            definition: Vec::new()
         }
+    }
+
+    pub fn definition<I>(&mut self, d: I)
+        where I: Into<Definition>
+    {
+        self.definition.push(d.into());
     }
 
     // Append a function to the root of the tree
