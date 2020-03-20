@@ -335,6 +335,7 @@ fn expr(i: &mut Info, s: &mut Scope,
         Expr::At(a) => method::at(i, s, a, expt)?,
         Expr::Field(f) => method::field(i, s, f, expt)?,
         Expr::Method(m) => method::method(i, s, m, expt)?,
+        Expr::Index(e) => complex::index(i, s, e, expt)?,
         _ => unimplemented!()
     }
     Ok(())

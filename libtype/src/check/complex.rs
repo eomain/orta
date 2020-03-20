@@ -3,9 +3,76 @@ use std::collections::HashMap;
 use super::*;
 use libast::ComplexLiteral as Complex;
 use libast::StructLiteral as Struct;
+use libast::ArrayLiteral as ArrayLit;
+use libast::Index;
 
-pub fn structs(i: &mut Info, s: &mut Scope, c: &mut Struct,
-               expt: Option<DataType>) -> Result<(), Error>
+pub fn index(i: &mut Info, s: &mut Scope, e: &mut Index,
+             expt: Option<DataType>) -> Result<(), Error>
+{
+    expr(i, s, &mut e.expr, None)?;
+
+    let dtype = e.expr.get_type();
+    let index = match dtype {
+        DataType::Array(a) => (**a).dtype.clone(),
+        _ => return Err(error!("expected type: array [], cannot index into `{}`", dtype))
+    };
+
+    expr(i, s, &mut e.index, None)?;
+
+    let dtype = e.index.get_type();
+    match dtype {
+        DataType::Integer(_) => (),
+        _ => return Err(error!("index error: found type '{}', expected integer type", dtype))
+    }
+
+    e.dtype = index;
+
+    Ok(())
+}
+
+fn array(i: &mut Info, s: &mut Scope, a: &mut ArrayLit,
+         expt: Option<DataType>) -> Result<(), Error>
+{
+    use DataType::*;
+    let len = a.elements.len();
+    let ok = expt.is_some();
+    let el = if let Some(expt) = &expt {
+        let dtype = match expt {
+            Array(a) => a.dtype.clone(),
+            _ => return Err(error!("expected type: array [], found type: {}", expt))
+        };
+        Some(dtype)
+
+    } else {
+        None
+    };
+
+    for e in &mut a.elements {
+        expr(i, s, e, el.clone())?;
+    }
+
+    if ok {
+        a.dtype = expt.unwrap();
+    } else if len > 0 {
+        let dtype = a.elements[0].get_type();
+        match dtype {
+            Array(array) => {
+                let mut array = (**array).clone();
+                array.sizes.push(len);
+                a.dtype = DataType::from(array);
+            },
+            _ => {
+                let array = libast::Array::new(vec![len], dtype.clone());
+                a.dtype = DataType::from(array);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn structs(i: &mut Info, s: &mut Scope, c: &mut Struct,
+           expt: Option<DataType>) -> Result<(), Error>
 {
     let comp = match s.find_record_type(&c.name) {
         Err(_) => return Err(error!("undefined type struct `{}`", &c.name)),
@@ -20,7 +87,7 @@ pub fn complex(i: &mut Info, s: &mut Scope, c: &mut Complex,
 {
     use Complex::*;
     match c {
+        Array(a) => array(i, s, a, expt),
         Struct(c) => structs(i, s, c, expt),
-        _ => unimplemented!()
     }
 }
