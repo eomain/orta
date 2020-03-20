@@ -9,6 +9,7 @@ use libtoken::IntoToken;
 use libtoken::Key;
 use libast::Array;
 use libast::ArrayLiteral;
+use libast::Index;
 use libast::ComplexLiteral as Complex;
 
 // Get the size value of the array
@@ -27,6 +28,15 @@ fn subscript(info: &mut ParseInfo) -> PResult<usize>
     let size = size(info)?;
     token!(Token::Rsqr, info.next())?;
     Ok(size)
+}
+
+// A single array index
+pub fn index(info: &mut ParseInfo, e: Expr) -> PResult<Expr>
+{
+    token!(Token::Lsqr, info.next())?;
+    let index = expr(info)?;
+    token!(Token::Rsqr, info.next())?;
+    Ok(Expr::Index(Index::new(index, e)))
 }
 
 // Parse an array type definition
@@ -98,5 +108,18 @@ mod tests {
         let mut info = ParseInfo::new(tokens);
         let l = literal(&mut info).unwrap();
         println!("{:?}", l);
+    }
+
+    #[test]
+    fn index_test()
+    {
+
+        let tokens = liblex::scan(r#"
+            data[i][2 * 2].run()
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let e = expr(&mut info).unwrap();
+        println!("{:?}", e);
     }
 }

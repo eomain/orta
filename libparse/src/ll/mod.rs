@@ -444,8 +444,16 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
         _ => Err(Error::from(msg))
     }?;
 
-    while let Some(&Token::Period) = info.look() {
-        e = meta::access(info, e)?;
+    loop {
+        match info.look() {
+            Some(&Token::Period) => {
+                e = meta::access(info, e)?;
+            },
+            Some(&Token::Lsqr) => {
+                e = array::index(info, e)?;
+            },
+            _ => break
+        }
     }
 
     Ok(e)
