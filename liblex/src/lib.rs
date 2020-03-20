@@ -189,13 +189,14 @@ fn ident(lexer: &mut Lexer) -> Token
     lexer.string.token()
 }
 
-static KEYWORDS: [(&str, Key); 18] = [
+static KEYWORDS: [(&str, Key); 19] = [
     ("fun", Key::Fun),
     ("pure", Key::Pure),
     ("if", Key::If),
     ("else", Key::Else),
     ("while", Key::While),
     ("for", Key::For),
+    ("loop", Key::Loop),
     ("true", Key::True),
     ("false", Key::False),
     ("return", Key::Return),
