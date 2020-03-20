@@ -2,6 +2,7 @@
 extern crate libast;
 extern crate libtoken;
 
+use std::fmt;
 use libtoken::Token;
 use libast::TokenStream;
 use libast::SyntaxTree;
@@ -103,6 +104,17 @@ impl From<&str> for Error {
     fn from(s: &str) -> Self
     {
         Error::Custom(s.into())
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        use Error::*;
+        write!(f, "{}", match self {
+            Custom(s) => s,
+            _ => "syntax"
+        })
     }
 }
 
