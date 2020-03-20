@@ -227,6 +227,26 @@ impl DataType {
         }
     }
 
+    pub fn complex(&self) -> bool
+    {
+        match self {
+            //DataType::String |
+            DataType::Tuple(_) |
+            DataType::Array(_) |
+            DataType::Slice(_) |
+            DataType::Record(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn array(&self) -> bool
+    {
+        match self {
+            DataType::Array(_) => true,
+            _ => false
+        }
+    }
+
     pub fn unique(&self) -> bool
     {
         match self {
@@ -495,7 +515,8 @@ pub enum Expr {
     At(AtExpr),
     Field(FieldAccess),
     Method(MethodAccess),
-    Slice(SliceExpr)
+    Slice(SliceExpr),
+    Index(Index)
 }
 
 impl Typed for Expr {
@@ -512,6 +533,7 @@ impl Typed for Expr {
             Expr::At(a) => a.get_type(),
             Expr::Field(f) => f.get_type(),
             Expr::Method(m) => m.get_type(),
+            Expr::Index(i) => i.get_type(),
             _ => unimplemented!()
         }
     }
@@ -833,6 +855,31 @@ impl Typed for SliceExpr {
             Ptr(e) |
             Len(e) => e.get_type()
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Index {
+    pub index: Box<Expr>,
+    pub expr: Box<Expr>,
+    pub dtype: DataType
+}
+
+impl Index {
+    pub fn new(index: Expr, expr: Expr) -> Self
+    {
+        Self {
+            index: Box::new(index),
+            expr: Box::new(expr),
+            dtype: DataType::Unset
+        }
+    }
+}
+
+impl Typed for Index {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
     }
 }
 
