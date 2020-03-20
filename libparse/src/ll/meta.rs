@@ -17,6 +17,8 @@ use libast::Method;
 use libast::MethodAccess;
 use libast::FieldAccess;
 use libast::Define;
+use libast::ComplexLiteral as Complex;
+use libast::StructLiteral;
 
 pub fn unique(info: &mut ParseInfo) -> PResult<(DataType, String)>
 {
@@ -83,7 +85,7 @@ pub fn structure(info: &mut ParseInfo) -> PResult<DataRecord>
     Ok(DataRecord::new(name, attrs))
 }
 
-pub fn struct_literal(info: &mut ParseInfo) -> PResult<()>
+pub fn struct_literal(info: &mut ParseInfo) -> PResult<Complex>
 {
     let name = id(info)?;
     token!(Token::Lbrace, info.next())?;
@@ -99,7 +101,7 @@ pub fn struct_literal(info: &mut ParseInfo) -> PResult<()>
         }
     }
     token!(Token::Rbrace, info.next())?;
-    Ok(())
+    Ok(Complex::from(StructLiteral::new(&name, v)))
 }
 
 // Parse a sequence of method parameters
