@@ -300,6 +300,7 @@ fn value(c: &mut Context, val: &ast::Value,
     Some(vec![match val {
         Unit => unimplemented!(),
         Literal(l, t) => literal(c, l, &t, v),
+        Complex(c) => unimplemented!(),
         Variable(var) => variable(c, var, v)
     }])
 }
@@ -679,6 +680,7 @@ fn expr(c: &mut Context, e: &ast::Expr,
         Comp(e) => cmp(c, e, v),
         Logical(l) => log(c, l, v),
         If(f) => { conditional(c, f, v); None },
+        Loop(l) => { loops(c, l, v); None },
         While(w) => { loop_while(c, w, v); None },
         Return(r) => ret(c, r, v),
         Assign(a) => { assign(c, a, v); None },
@@ -809,11 +811,28 @@ fn conditional(c: &mut Context, br: &ast::IfExpr, v: &mut Vec<Inst>)
     v.push(Inst::new(endop, Type::Label));
 }
 
+// Convert an unconditional loop into LLVM
+fn loops(c: &mut Context, w: &ast::Loop, v: &mut Vec<Inst>)
+{
+    let (br, brop) = c.id.label();
+    let (start, sop) = c.id.label();
+    let (ends, endop) = c.id.label();
+
+    let op = Operation::BrCond(Register::new(&br));
+    v.push(Inst::new(op, Type::None));
+    v.push(Inst::new(brop, Type::Label));
+
+    for e in &w.expr {
+        expr(c, e, v);
+    }
+
+    let back = Operation::BrCond(Register::new(&br));
+    v.push(Inst::new(back, Type::None));
+}
+
 // Convert a while loop into LLVM
 fn loop_while(c: &mut Context, w: &ast::WhileExpr, v: &mut Vec<Inst>)
 {
-    ret_end(c);
-
     let (_, val) = bexpr(c, &w.cond, v);
     let (br, brop) = c.id.label();
     let (start, sop) = c.id.label();
