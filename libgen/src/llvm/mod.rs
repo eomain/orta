@@ -273,6 +273,26 @@ pub enum Type {
     None
 }
 
+impl Type {
+    pub fn get_array_to_pointer(&self) -> Type
+    {
+        use Type::*;
+        match self {
+            Array(_, t) => Pointer(t.clone()),
+            _ => panic!("not an array type!")
+        }
+    }
+
+    pub fn get_pointer_type(&self) -> Type
+    {
+        use Type::*;
+        match self {
+            Pointer(t) => (**t).clone(),
+            _ => panic!("not a pointer type!")
+        }
+    }
+}
+
 impl From<Type> for String {
     fn from(t: Type) -> String
     {
