@@ -291,6 +291,27 @@ impl Type {
             _ => panic!("not a pointer type!")
         }
     }
+
+    pub fn array(&self) -> bool
+    {
+        use Type::*;
+        match self {
+            Array(_, _) => true,
+            _ => false
+        }
+    }
+
+    pub fn multi_array(&self) -> bool
+    {
+        use Type::*;
+        match self {
+            Array(_, t) => match **t {
+                Array(_, _) => true,
+                _ => false
+            },
+            _ => false
+        }
+    }
 }
 
 impl From<Type> for String {
