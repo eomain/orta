@@ -128,9 +128,11 @@ pub fn cast(c: &mut Context, e: &ast::Cast,
         (Type::Pointer(_), Type::Pointer(t)) => {
             Value::Reg(ptr_to_ptr(c, val, &from, &into, v))
         },
+        (Type::Int(_), Type::Pointer(t)) |
         (Type::Uint(_), Type::Pointer(t)) => {
             Value::Reg(int_to_ptr(c, val, &from, &t, v))
         },
+        (Type::Pointer(_), Type::Int(_)) |
         (Type::Pointer(_), Type::Uint(_)) => {
             Value::Reg(ptr_to_int(c, val, &from, &into, v))
         },
