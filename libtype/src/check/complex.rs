@@ -13,7 +13,15 @@ pub fn index(i: &mut Info, s: &mut Scope, e: &mut Index,
 
     let dtype = e.expr.get_type();
     let index = match dtype {
-        DataType::Array(a) => (**a).dtype.clone(),
+        DataType::Array(a) => {
+            if a.sizes.len() > 1 {
+                let mut a = (**a).clone();
+                a.sizes.remove(0);
+                DataType::from(a)
+            } else {
+                (**a).dtype.clone()
+            }
+        },
         _ => return Err(error!("expected type: array [], cannot index into `{}`", dtype))
     };
 
@@ -34,11 +42,18 @@ fn array(i: &mut Info, s: &mut Scope, a: &mut ArrayLit,
          expt: Option<DataType>) -> Result<(), Error>
 {
     use DataType::*;
-    let len = a.elements.len();
-    let ok = expt.is_some();
+
     let el = if let Some(expt) = &expt {
         let dtype = match expt {
-            Array(a) => a.dtype.clone(),
+            Array(a) => {
+                if a.sizes.len() > 1 {
+                    let mut a = (**a).clone();
+                    a.sizes.remove(0);
+                    DataType::from(a)
+                } else {
+                    a.dtype.clone()
+                }
+            },
             _ => return Err(error!("expected type: array [], found type: {}", expt))
         };
         Some(dtype)
@@ -51,20 +66,17 @@ fn array(i: &mut Info, s: &mut Scope, a: &mut ArrayLit,
         expr(i, s, e, el.clone())?;
     }
 
-    if ok {
-        a.dtype = expt.unwrap();
-    } else if len > 0 {
-        let dtype = a.elements[0].get_type();
-        match dtype {
-            Array(array) => {
-                let mut array = (**array).clone();
-                array.sizes.push(len);
-                a.dtype = DataType::from(array);
-            },
-            _ => {
-                let array = libast::Array::new(vec![len], dtype.clone());
-                a.dtype = DataType::from(array);
-            }
+    let len = a.elements.len();
+    let dtype = a.elements[0].get_type();
+    match dtype {
+        Array(array) => {
+            let mut array = (**array).clone();
+            array.sizes.insert(0, len);
+            a.dtype = DataType::from(array);
+        },
+        _ => {
+            let array = libast::Array::new(vec![len], dtype.clone());
+            a.dtype = DataType::from(array);
         }
     }
 
