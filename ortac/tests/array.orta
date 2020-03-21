@@ -1,0 +1,9 @@
+
+fun main()
+{
+    let data: [4] int = [
+        0x05, 0x12, 0x80, 0xFF
+    ];
+
+    iprint(data[1]);
+}

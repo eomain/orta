@@ -1,0 +1,7 @@
+
+fun main()
+{
+    let i: int = 0xFF;
+    let ptr: ^int = &i;
+    iprint((int)ptr);
+}
