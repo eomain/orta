@@ -516,7 +516,8 @@ pub enum Expr {
     Field(FieldAccess),
     Method(MethodAccess),
     Slice(SliceExpr),
-    Index(Index)
+    Index(Index),
+    Address(Address)
 }
 
 impl Typed for Expr {
@@ -534,6 +535,7 @@ impl Typed for Expr {
             Expr::Field(f) => f.get_type(),
             Expr::Method(m) => m.get_type(),
             Expr::Index(i) => i.get_type(),
+            Expr::Address(a) => a.get_type(),
             _ => unimplemented!()
         }
     }
@@ -546,12 +548,19 @@ pub struct Address {
 }
 
 impl Address {
-    pub fn new(id: &str, dtype: DataType) -> Self
+    pub fn new(id: &str) -> Self
     {
         Self {
             id: id.into(),
-            dtype: DataType::Pointer(Rc::new(dtype))
+            dtype: DataType::Unset
         }
+    }
+}
+
+impl Typed for Address {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
     }
 }
 
