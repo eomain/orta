@@ -713,6 +713,7 @@ fn expr(c: &mut Context, e: &ast::Expr,
         Field(f) => method::field(c, f, v),
         Index(i) => Some(vec![complex::index(c, i, v)]),
         Address(a) => Some(vec![ptr::address(c, a, v)]),
+        Deref(d) => Some(vec![ptr::deref(c, d, v)]),
         _ => unimplemented!()
     }
 }
