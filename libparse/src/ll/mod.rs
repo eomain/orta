@@ -26,10 +26,10 @@ use libast::Literal;
 use libast::Variable;
 use libast::Value;
 use libast::Assign;
-use libast::{ Expr, ExprList, Cast, AtExpr };
+use libast::{ Expr, ExprList, Cast, AtExpr, Address };
 use libast::{ BinaryExpr, CallExpr, Return };
 use libast::DataType;
-use libast::{IntType, FloatType};
+use libast::{ IntType, FloatType };
 use libast::ParamList;
 use libast::SyntaxTree;
 
@@ -411,6 +411,29 @@ fn at_test()
     let at = at(&mut info).unwrap();
 }
 
+fn address(info: &mut ParseInfo) -> PResult<Expr>
+{
+    token!(Token::Operator(Operator::Bitwise(BOp::And)), info.next())?;
+    let id = match info.look() {
+        Some(Token::Symbol(s)) => s,
+        _ => return Err(Error::from("expected identifier"))
+    };
+    Ok(Expr::Address(Address::new(id)))
+}
+
+#[test]
+fn address_test()
+{
+    extern crate liblex;
+
+    let tokens = liblex::scan(r#"
+        &data
+    "#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let a = address(&mut info).unwrap();
+}
+
 fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
 {
     let msg = "expected expression";
@@ -441,6 +464,7 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
                 _ => Err(Error::from(msg))
             }
         },
+        Token::Operator(Operator::Bitwise(BOp::And)) => Ok(address(info)?),
         _ => Err(Error::from(msg))
     }?;
 
