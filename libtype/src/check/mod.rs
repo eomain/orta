@@ -2,6 +2,7 @@
 mod cast;
 mod complex;
 mod method;
+mod ptr;
 mod ret;
 
 use std::rc::Rc;
@@ -336,6 +337,7 @@ fn expr(i: &mut Info, s: &mut Scope,
         Expr::Field(f) => method::field(i, s, f, expt)?,
         Expr::Method(m) => method::method(i, s, m, expt)?,
         Expr::Index(e) => complex::index(i, s, e, expt)?,
+        Expr::Address(a) => ptr::address(i, s, a, expt)?,
         _ => unimplemented!()
     }
     Ok(())
