@@ -413,8 +413,8 @@ fn at_test()
 
 fn address(info: &mut ParseInfo) -> PResult<Expr>
 {
-    token!(Token::Operator(Operator::Bitwise(BOp::And)), info.next())?;
-    let id = match info.look() {
+    token!(Token::Operator(Bitwise(BOp::And)), info.next())?;
+    let id = match info.next() {
         Some(Token::Symbol(s)) => s,
         _ => return Err(Error::from("expected identifier"))
     };
@@ -464,7 +464,7 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
                 _ => Err(Error::from(msg))
             }
         },
-        Token::Operator(Operator::Bitwise(BOp::And)) => Ok(address(info)?),
+        Token::Operator(Bitwise(BOp::And)) => Ok(address(info)?),
         _ => Err(Error::from(msg))
     }?;
 
