@@ -2,6 +2,7 @@
 mod cast;
 mod complex;
 mod method;
+mod ptr;
 mod slice;
 
 use std::rc::Rc;
@@ -524,7 +525,7 @@ fn phi(c: &mut Context, e: (Type, Vec<(Value, Register)>),
 }
 
 fn log_cmp(c: &mut Context, e: &ast::Expr,
-       v: &mut Vec<Inst>) -> Register
+           v: &mut Vec<Inst>) -> Register
 {
     let (t, val) = unary_expr(c, e, v);
     let r = c.id.register();
