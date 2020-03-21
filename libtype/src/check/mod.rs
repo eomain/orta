@@ -338,6 +338,7 @@ fn expr(i: &mut Info, s: &mut Scope,
         Expr::Method(m) => method::method(i, s, m, expt)?,
         Expr::Index(e) => complex::index(i, s, e, expt)?,
         Expr::Address(a) => ptr::address(i, s, a, expt)?,
+        Expr::Deref(d) => ptr::deref(i, s, d, expt)?,
         _ => unimplemented!()
     }
     Ok(())
