@@ -517,7 +517,8 @@ pub enum Expr {
     Method(MethodAccess),
     Slice(SliceExpr),
     Index(Index),
-    Address(Address)
+    Address(Address),
+    Deref(Deref)
 }
 
 impl Typed for Expr {
@@ -536,6 +537,7 @@ impl Typed for Expr {
             Expr::Method(m) => m.get_type(),
             Expr::Index(i) => i.get_type(),
             Expr::Address(a) => a.get_type(),
+            Expr::Deref(d) => d.get_type(),
             _ => unimplemented!()
         }
     }
@@ -558,6 +560,29 @@ impl Address {
 }
 
 impl Typed for Address {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Deref {
+    pub expr: Box<Expr>,
+    pub dtype: DataType
+}
+
+impl Deref {
+    pub fn new(expr: Expr) -> Self
+    {
+        Self {
+            expr: Box::new(expr),
+            dtype: DataType::Unset
+        }
+    }
+}
+
+impl Typed for Deref {
     fn get_type(&self) -> &DataType
     {
         &self.dtype
