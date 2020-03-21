@@ -26,7 +26,7 @@ use libast::Literal;
 use libast::Variable;
 use libast::Value;
 use libast::Assign;
-use libast::{ Expr, ExprList, Cast, AtExpr, Address };
+use libast::{ Expr, ExprList, Cast, AtExpr, Address, Deref };
 use libast::{ BinaryExpr, CallExpr, Return };
 use libast::DataType;
 use libast::{ IntType, FloatType };
@@ -434,6 +434,26 @@ fn address_test()
     let a = address(&mut info).unwrap();
 }
 
+fn deref(info: &mut ParseInfo) -> PResult<Expr>
+{
+    token!(Token::Operator(Bitwise(BOp::Xor)), info.next())?;
+    let expr = expr(info)?;
+    Ok(Expr::Deref(Deref::new(expr)))
+}
+
+#[test]
+fn deref_test()
+{
+    extern crate liblex;
+
+    let tokens = liblex::scan(r#"
+        ^run(a, b)
+    "#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let d = deref(&mut info).unwrap();
+}
+
 fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
 {
     let msg = "expected expression";
@@ -465,6 +485,7 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
             }
         },
         Token::Operator(Bitwise(BOp::And)) => Ok(address(info)?),
+        Token::Operator(Bitwise(BOp::Xor)) => Ok(deref(info)?),
         _ => Err(Error::from(msg))
     }?;
 
