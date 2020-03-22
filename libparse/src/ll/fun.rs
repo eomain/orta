@@ -41,16 +41,31 @@ fn params(info: &mut ParseInfo) -> PResult<ParamList>
 }
 
 // Parse function properties
-fn props(info: &mut ParseInfo) -> FunctionProp
+fn props(info: &mut ParseInfo) -> PResult<FunctionProp>
 {
     let mut prop = FunctionProp::default();
-    if token_is!(Key::Extern.token(), info) {
-        prop.external();
+    loop {
+        match info.look() {
+            Some(Token::Keyword(Key::Extern)) => {
+                if prop.external() {
+                    return Err("redeclaration of 'extern' keyword".into());
+                }
+                info.next();
+            },
+            Some(Token::Keyword(Key::Unsafe)) => {
+                if prop.r#unsafe() {
+                    return Err("redeclaration of 'unsafe' keyword".into());
+                }
+                info.next();
+            },
+            _ => break
+        }
     }
+    
     if token_is!(Key::Pure.token(), info) {
         prop.pure();
     }
-    prop
+    Ok(prop)
 }
 
 // Parse function return type
@@ -67,7 +82,7 @@ pub fn rtype(info: &mut ParseInfo) -> PResult<DataType>
 // Parse a function
 pub fn function(info: &mut ParseInfo) -> PResult<Function>
 {
-    let prop = props(info);
+    let prop = props(info)?;
     token!(Key::Fun.token(), info.next())?;
 
     let name = id(info)?;
