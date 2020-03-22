@@ -416,7 +416,7 @@ fn loop_while(i: &mut Info, s: &mut Scope, wl: &mut WhileExpr,
 fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
 {
     if s.contains(&a.id) {
-        if i.get_count() == 1 {
+        if a.declare && i.get_count() == 1 {
             return Err(error!("redeclaration of variable `{}`", &a.id));
         }
         match s.find_var_type(&a.id) {
