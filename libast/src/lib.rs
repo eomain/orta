@@ -518,7 +518,8 @@ pub enum Expr {
     Slice(SliceExpr),
     Index(Index),
     Address(Address),
-    Deref(Deref)
+    Deref(Deref),
+    Unsafe(Unsafe)
 }
 
 impl Typed for Expr {
@@ -538,6 +539,7 @@ impl Typed for Expr {
             Expr::Index(i) => i.get_type(),
             Expr::Address(a) => a.get_type(),
             Expr::Deref(d) => d.get_type(),
+            Expr::Unsafe(u) => u.get_type(),
             _ => unimplemented!()
         }
     }
@@ -872,6 +874,30 @@ impl Typed for MethodAccess {
     fn get_type(&self) -> &DataType
     {
         self.call.get_type()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Unsafe {
+    pub expr: ExprList
+}
+
+impl Unsafe {
+    pub fn new(expr: ExprList) -> Self
+    {
+        Self {
+            expr
+        }
+    }
+}
+
+impl Typed for Unsafe {
+    fn get_type(&self) -> &DataType
+    {
+        match self.expr.last() {
+            None => unreachable!(),
+            Some(e) => e.get_type()
+        }
     }
 }
 
