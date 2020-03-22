@@ -27,7 +27,7 @@ use libast::Variable;
 use libast::Value;
 use libast::Assign;
 use libast::{ Expr, ExprList, Cast, AtExpr, Address, Deref };
-use libast::{ BinaryExpr, CallExpr, Return, Unsafe };
+use libast::{ BinaryExpr, CallExpr, Return, UnsafeExpr };
 use libast::DataType;
 use libast::{ IntType, FloatType };
 use libast::ParamList;
@@ -457,8 +457,8 @@ fn deref_test()
 fn unsafe_expr(info: &mut ParseInfo) -> PResult<Expr>
 {
     token!(Token::Keyword(Key::Unsafe), info.next())?;
-    let expr = vec![expr(info)?];
-    Ok(Expr::Unsafe(Unsafe::new(expr)))
+    let expr = expr(info)?;
+    Ok(Expr::Unsafe(UnsafeExpr::new(expr)))
 }
 
 #[test]
@@ -645,6 +645,7 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                         tree.defines.insert(n, d);
                     },
                     Key::Extern |
+                    Key::Unsafe |
                     Key::Pure |
                     Key::Fun => {
                         let f = fun::function(info)?;
