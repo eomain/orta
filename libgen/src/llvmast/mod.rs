@@ -714,6 +714,7 @@ fn expr(c: &mut Context, e: &ast::Expr,
         Index(i) => Some(vec![complex::index(c, i, v)]),
         Address(a) => Some(vec![ptr::address(c, a, v)]),
         Deref(d) => Some(vec![ptr::deref(c, d, v)]),
+        Unsafe(u) => expr(c, &*u.expr, v),
         _ => unimplemented!()
     }
 }
