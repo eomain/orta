@@ -592,37 +592,21 @@ impl Typed for Deref {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Declare {
-    pub id: String,
-    pub dtype: DataType,
-    pub assign: Option<Assign>
-}
-
-impl Declare {
-    pub fn new(id: &str, dtype: DataType, assign: Option<Assign>) -> Self
-    {
-        Self {
-            id: id.into(),
-            dtype,
-            assign
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct Assign {
     pub id: String,
     pub dtype: DataType,
-    pub expr: Expr
+    pub expr: Expr,
+    pub declare: bool
 }
 
 impl Assign {
-    pub fn new(id: &str, dtype: DataType, expr: Expr) -> Self
+    pub fn new(id: &str, dtype: DataType, expr: Expr, declare: bool) -> Self
     {
         Self {
             id: id.into(),
             dtype,
-            expr
+            expr,
+            declare
         }
     }
 }
