@@ -78,17 +78,29 @@ pub fn function(info: &mut ParseInfo) -> PResult<Function>
     Ok(Function::new(&name, prop, param, rtype, expr))
 }
 
+#[inline]
+fn param_id(info: &mut ParseInfo) -> PResult<()>
+{
+    if Some(&Token::Colon) == info.peek() {
+        id(info)?;
+        info.next();
+    }
+    Ok(())
+}
+
 // Parse a sequence of function parameter declarations
 fn params_dec(info: &mut ParseInfo) -> PResult<Vec<DataType>>
 {
     token!(Token::Lparen, info.next())?;
     let mut v = Vec::new();
     if Some(&Token::Rparen) != info.look() {
+        param_id(info)?;
         let t = types(info)?;
         v.push(t);
 
         while Some(&Token::Comma) == info.look() {
             info.next();
+            param_id(info)?;
             let t = types(info)?;
             v.push(t);
         }
@@ -201,7 +213,7 @@ mod tests {
         let tokens = liblex::scan(r#"
             foreign {
                 fun run(() -> ()): bool;
-                fun add(int, int): int;
+                fun add(a: int, b: int): int;
                 fun main();
             }
         "#.chars().collect()).unwrap();
