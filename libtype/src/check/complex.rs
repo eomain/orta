@@ -9,17 +9,24 @@ use libast::Index;
 pub fn index(i: &mut Info, s: &mut Scope, e: &mut Index,
              expt: Option<DataType>) -> Result<(), Error>
 {
+    use DataType::*;
     expr(i, s, &mut e.expr, None)?;
 
     let dtype = e.expr.get_type();
     let index = match dtype {
-        DataType::Array(a) => {
+        Array(a) => {
             if a.sizes.len() > 1 {
                 let mut a = (**a).clone();
                 a.sizes.remove(0);
                 DataType::from(a)
             } else {
                 (**a).dtype.clone()
+            }
+        },
+        Pointer(t) => {
+            match &**t {
+                Array(a) => Pointer(Rc::new((*a).dtype.clone())),
+                _ => dtype.clone()
             }
         },
         _ => return Err(error!("expected type: array [], cannot index into `{}`", dtype))
@@ -29,7 +36,7 @@ pub fn index(i: &mut Info, s: &mut Scope, e: &mut Index,
 
     let dtype = e.index.get_type();
     match dtype {
-        DataType::Integer(_) => (),
+        Integer(_) => (),
         _ => return Err(error!("index error: found type '{}', expected integer type", dtype))
     }
 
