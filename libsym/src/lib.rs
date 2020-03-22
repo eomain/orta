@@ -1,10 +1,13 @@
 
 mod librt;
 
+use std::rc::Rc;
 use std::collections::HashMap;
 use libast::DataType;
 use libast::DataRecord;
 use libast::ParamList;
+
+pub type Map<K, V> = HashMap<K, V>;
 
 // The symbol used to refernce the type information
 pub type Id = String;
@@ -35,6 +38,27 @@ impl From<&Error> for String {
             Custom(s) => s.clone()
         }
     }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum IdDef {
+    None,
+    Const,
+    Var
+}
+
+// Contains all the info about symbols
+pub struct Info {
+    // The type of the symbol
+    pub dtype: Rc<DataType>,
+    // If the symbol type is final
+    pub ftype: bool,
+    // If the symbol is a global
+    pub global: bool,
+    // Identifier definition
+    pub def: IdDef,
+    // Is a named type
+    pub named: bool
 }
 
 // The type information
@@ -230,10 +254,14 @@ pub struct Table<'a> {
 }
 
 impl<'a> Table<'a> {
-    pub fn new() -> Self
+    pub fn new(rtlib: bool) -> Self
     {
         let global = {
-            librt::insert(Scope::new(None))
+            if rtlib {
+                librt::insert(Scope::new(None))
+            } else {
+                Scope::new(None)
+            }
         };
         Self {
             global
