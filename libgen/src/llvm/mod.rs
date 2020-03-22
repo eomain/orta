@@ -283,6 +283,15 @@ impl Type {
         }
     }
 
+    pub fn get_array_type(&self) -> Type
+    {
+        use Type::*;
+        match self {
+            Array(_, t) => (**t).clone(),
+            _ => panic!("not an array type!")
+        }
+    }
+
     pub fn get_pointer_type(&self) -> Type
     {
         use Type::*;
@@ -297,6 +306,15 @@ impl Type {
         use Type::*;
         match self {
             Array(_, _) => true,
+            _ => false
+        }
+    }
+
+    pub fn pointer(&self) -> bool
+    {
+        use Type::*;
+        match self {
+            Pointer(_) => true,
             _ => false
         }
     }

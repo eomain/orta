@@ -45,21 +45,38 @@ fn get(c: &mut Context, t: Type, reg: Rc<Register>,
     r
 }
 
+fn pointer(c: &mut Context, t: Type, val: Value,
+           v: &mut Vec<Inst>) -> (Type, Value)
+{
+    let dtype = t.get_array_type();
+    let tval = (t, val);
+    let r = get_index(c, &tval, 0, v);
+    (Type::Pointer(Box::new(dtype)), Value::Reg(r))
+}
+
 pub fn index(c: &mut Context, i: &Index,
              v: &mut Vec<Inst>) -> (Type, Value)
 {
     let tval = unary_expr(c, &i.expr, v);
-    let r = get_index(c, &tval, 0, v);
-    let mut index = (
-        tval.0.get_array_to_pointer(),
-        Value::Reg(r)
-    );
+    let index = match &tval.0 {
+        Type::Pointer(t) => {
+            match **t {
+                Type::Array(_, _) => pointer(c, (**t).clone(), tval.1, v),
+                _ => tval
+            }
+        },
+        Type::Array(_, _) => {
+            let r = get_index(c, &tval, 0, v);
+            (tval.0.get_array_to_pointer(), Value::Reg(r))
+        },
+        _ => unreachable!()
+    };
 
     let (t, val) = unary_expr(c, &i.index, v);
     let r = offset(c, &index, t, val, v);
     let dtype = type_cast(&i.dtype);
 
-    if dtype.array() {
+    if dtype.array() || dtype.pointer() {
         return (dtype, Value::Reg(r))
     }
     let r = get(c, dtype.clone(), Rc::new(r), v);
