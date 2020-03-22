@@ -189,7 +189,7 @@ fn ident(lexer: &mut Lexer) -> Token
     lexer.string.token()
 }
 
-static KEYWORDS: [(&str, Key); 20] = [
+static KEYWORDS: [(&str, Key); 21] = [
     ("fun", Key::Fun),
     ("pure", Key::Pure),
     ("if", Key::If),
@@ -207,6 +207,7 @@ static KEYWORDS: [(&str, Key); 20] = [
     ("foreign", Key::Foreign),
     ("extern", Key::Extern),
     ("break", Key::Break),
+    ("continue", Key::Continue),
     ("unsafe", Key::Unsafe),
     ("unique", Key::Unique),
     ("define", Key::Define)
