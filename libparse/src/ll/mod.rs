@@ -27,7 +27,7 @@ use libast::Variable;
 use libast::Value;
 use libast::Assign;
 use libast::{ Expr, ExprList, Cast, AtExpr, Address, Deref };
-use libast::{ BinaryExpr, CallExpr, Return };
+use libast::{ BinaryExpr, CallExpr, Return, Unsafe };
 use libast::DataType;
 use libast::{ IntType, FloatType };
 use libast::ParamList;
@@ -454,6 +454,26 @@ fn deref_test()
     let d = deref(&mut info).unwrap();
 }
 
+fn unsafe_expr(info: &mut ParseInfo) -> PResult<Expr>
+{
+    token!(Token::Keyword(Key::Unsafe), info.next())?;
+    let expr = vec![expr(info)?];
+    Ok(Expr::Unsafe(Unsafe::new(expr)))
+}
+
+#[test]
+fn unsafe_test()
+{
+    extern crate liblex;
+
+    let tokens = liblex::scan(r#"
+        unsafe ^p
+    "#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let u = unsafe_expr(&mut info).unwrap();
+}
+
 fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
 {
     let msg = "expected expression";
@@ -481,6 +501,7 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
                 Key::True | Key::False => Ok(Expr::Value(value(info)?)),
                 Key::Return => Ok(Expr::Return(ret(info)?)),
                 Key::Let => Ok(Expr::Assign(Box::new(assign_let(info)?))),
+                Key::Unsafe => Ok(unsafe_expr(info)?),
                 _ => Err(Error::from(msg))
             }
         },
