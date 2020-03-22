@@ -519,7 +519,7 @@ pub enum Expr {
     Index(Index),
     Address(Address),
     Deref(Deref),
-    Unsafe(Unsafe)
+    Unsafe(UnsafeExpr)
 }
 
 impl Typed for Expr {
@@ -878,26 +878,23 @@ impl Typed for MethodAccess {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Unsafe {
-    pub expr: ExprList
+pub struct UnsafeExpr {
+    pub expr: Box<Expr>
 }
 
-impl Unsafe {
-    pub fn new(expr: ExprList) -> Self
+impl UnsafeExpr {
+    pub fn new(expr: Expr) -> Self
     {
         Self {
-            expr
+            expr: Box::new(expr)
         }
     }
 }
 
-impl Typed for Unsafe {
+impl Typed for UnsafeExpr {
     fn get_type(&self) -> &DataType
     {
-        match self.expr.last() {
-            None => unreachable!(),
-            Some(e) => e.get_type()
-        }
+        self.expr.get_type()
     }
 }
 
@@ -1028,7 +1025,8 @@ impl From<&ParamList> for Vec<(String, DataType)> {
 pub struct FunctionProp {
     // if the function is pure
     pub pure: bool,
-    pub external: bool
+    pub external: bool,
+    pub r#unsafe: bool
 }
 
 impl FunctionProp {
@@ -1036,7 +1034,8 @@ impl FunctionProp {
     {
         Self {
             pure: false,
-            external: false
+            external: false,
+            r#unsafe: false
         }
     }
 
@@ -1045,9 +1044,18 @@ impl FunctionProp {
         self.pure = true;
     }
 
-    pub fn external(&mut self)
+    pub fn external(&mut self) -> bool
     {
+        let external = self.external;
         self.external = true;
+        external
+    }
+
+    pub fn r#unsafe(&mut self) -> bool
+    {
+        let r#unsafe = self.r#unsafe;
+        self.r#unsafe = true;
+        r#unsafe
     }
 }
 
