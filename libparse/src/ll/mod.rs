@@ -258,9 +258,9 @@ fn value(info: &mut ParseInfo) -> PResult<Value>
     }
 }
 
-fn assign_let(info: &mut ParseInfo) -> PResult<Assign>
+fn assign(info: &mut ParseInfo) -> PResult<Assign>
 {
-    token!(Token::Keyword(Key::Let), info.next())?;
+    let declare = token_is!(Token::Keyword(Key::Let), info);
     let id = id(info)?;
     let dtype = if token_is!(Token::Colon, info) {
         types(info)?
@@ -269,22 +269,30 @@ fn assign_let(info: &mut ParseInfo) -> PResult<Assign>
     };
     token!(Token::Assign, info.next())?;
     let expr = expr(info)?;
-    Ok(Assign::new(&id, dtype, expr))
+    Ok(Assign::new(&id, dtype, expr, declare))
 }
 
 #[test]
-fn assign_let_test()
+fn assign_test()
 {
     extern crate liblex;
 
     let tokens = liblex::scan(r#"let x = "test""#.chars().collect()).unwrap();
 
     let mut info = ParseInfo::new(tokens);
-    let assign = assign_let(&mut info).unwrap();
+    let a = assign(&mut info).unwrap();
 
-    assert_eq!(assign.id, String::from("x"));
+    assert_eq!(a.id, String::from("x"));
     let val = Value::Literal(Literal::String("test".into()), DataType::Unset);
-    assert_eq!(assign.expr, Expr::Value(val));
+    assert_eq!(a.expr, Expr::Value(val));
+    assert_eq!(a.declare, true);
+
+
+    let tokens = liblex::scan(r#"x = "test""#.chars().collect()).unwrap();
+
+    let mut info = ParseInfo::new(tokens);
+    let a = assign(&mut info).unwrap();
+    assert_eq!(a.declare, false);
 }
 
 // A function call expression of the form `<id>(<expr>, <expr>, ...)`
@@ -483,10 +491,10 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
         Token::Lsqr => Ok(Expr::Value(Value::from(array::literal(info)?))),
         Token::At => Ok(at(info)?),
         Token::Symbol(_) => {
-            if Some(&Token::Lparen) == info.peek() {
-                Ok(Expr::Call(call(info)?))
-            } else {
-                Ok(Expr::Value(value(info)?))
+            match info.peek() {
+                Some(&Token::Lparen) => Ok(Expr::Call(call(info)?)),
+                Some(&Token::Assign) => Ok(Expr::Assign(Box::new(assign(info)?))),
+                _ => Ok(Expr::Value(value(info)?))
             }
         },
         Token::Literal(_) |
@@ -500,7 +508,7 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
                 Key::While => Ok(Expr::While(iter::loop_while(info)?)),
                 Key::True | Key::False => Ok(Expr::Value(value(info)?)),
                 Key::Return => Ok(Expr::Return(ret(info)?)),
-                Key::Let => Ok(Expr::Assign(Box::new(assign_let(info)?))),
+                Key::Let => Ok(Expr::Assign(Box::new(assign(info)?))),
                 Key::Unsafe => Ok(unsafe_expr(info)?),
                 _ => Err(Error::from(msg))
             }
