@@ -84,8 +84,8 @@ pub fn index(c: &mut Context, i: &Index,
     (dtype, Value::Reg(r))
 }
 
-pub fn set(c: &mut Context, e: &Expr, r: &Register,
-           v: &mut Vec<Inst>)
+fn set(c: &mut Context, e: &Expr, r: &Register,
+       v: &mut Vec<Inst>)
 {
     let (t, val) = unary_expr(c, e, v);
     let op = Store(val, t.clone(), Rc::new(r.clone()));
