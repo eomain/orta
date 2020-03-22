@@ -670,12 +670,10 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                         let (unique, name) = meta::unique(info)?;
                         tree.append_types(&name, unique);
                     },
-                    // TODO: error
-                    _ => unimplemented!()
+                    _ => return Err(Error::Token(token.clone()))
                 }
             },
-            // TODO: error
-            _ => unimplemented!()
+            _ => return Err(Error::Token(token.clone()))
         }
     }
 
