@@ -5,6 +5,8 @@ extern crate libparse;
 extern crate libtype;
 extern crate libgen;
 
+mod asm;
+mod linker;
 mod pipe;
 
 use std::io;
@@ -119,9 +121,8 @@ fn parse(tokens: TokenStream) -> Result<SyntaxTree, Error>
     }
 }
 
-fn type_check(ast: &mut SyntaxTree) -> Result<(), Error>
+fn type_check(ast: &mut SyntaxTree, meta: TypeMeta) -> Result<(), Error>
 {
-    let meta = TypeMeta::new(true);
     match libtype::init(meta, ast) {
         Err(e) => {
             eprintln!("error: {}", e);
@@ -151,43 +152,11 @@ fn compile(output: Option<&str>) -> Vec<&str>
     }
 }
 
+static TMP_IR: &str = "tmp.ll";
+static TMP_OBJ: &str = "tmp.o";
+
 // Runtime library
 static RTLIB: &str = include_str!("../rt.ll");
-
-fn asm(output: &str) -> Vec<&str>
-{
-    vec![
-        "as", "-o", output
-    ]
-}
-
-#[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
-fn ld_cmd(output: &str) -> Vec<&str>
-{
-    vec![
-        "ld", "-o", output
-    ]
-}
-
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-fn ld_cmd(output: &str) -> Vec<&str>
-{
-    vec![
-        "ld", "--dynamic-linker", "/lib64/ld-linux-x86-64.so.2",
-        "-o", output
-    ]
-}
-
-// Default program entry point
-static ENTRY: &str = "_start";
-
-fn ld<'a>(output: &'a str, objs: &mut Vec<&'a str>) -> Vec<&'a str>
-{
-    let mut v = ld_cmd(output);
-    v.append(&mut vec!["-lc", "-e", ENTRY]);
-    v.append(objs);
-    v
-}
 
 fn file_write<I>(name: I, s: &String) -> Result<fs::File, Error>
     where I: AsRef<Path>
@@ -301,22 +270,25 @@ impl BuildCommand {
 
     fn exec(&mut self) -> Result<(), Error>
     {
+        use OutputFormat::*;
+
         let input = input(&mut self.input)?;
         let tokens = scan(&input)?;
         let mut ast = parse(tokens)?;
-        type_check(&mut ast)?;
+        let (bin, run) = match self.format {
+            BIN => (true, true),
+            _ => (false, false)
+        };
+        type_check(&mut ast, TypeMeta::new(bin, run))?;
 
         let cg = self.codegen();
         let mut ir = codegen(&ast, cg, "");
         self.libs(&mut ir);
 
-        use OutputFormat::*;
-
-        use OutputFormat::*;
         if let IR(_) = self.format {
             file_write(&self.output, &ir)?;
         } else {
-            let name = "tmp.ll";
+            let name = TMP_IR;
             let clean = || {
                 fs::remove_file(name);
             };
@@ -336,20 +308,20 @@ impl BuildCommand {
 
             if let OBJ = self.format {
                 let out = self.name();
-                let obj = asm(out);
+                let obj = asm::asm(out);
                 pl.add(&obj);
                 pl.run_with(clean);
                 return Ok(());
             }
 
-            let name = "tmp.o";
-            let obj = asm(name);
+            let name = TMP_OBJ;
+            let obj = asm::asm(name);
             pl.add(&obj);
             pl.run_with(clean);
 
             let out = self.name();
             let mut args = vec![name];
-            let args = ld(out, &mut args);
+            let args = linker::ld(out, &mut args);
             pipe::exec(&args);
             fs::remove_file(name);
         }

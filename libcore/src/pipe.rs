@@ -41,9 +41,8 @@ impl<'a> Pipeline<'a> {
         self.commands.len()
     }
 
-    pub fn run(&self) //-> Result<Output>
+    pub fn run(&self)
     {
-        //assert_eq!(self.len() > 1, true);
         let end = self.len() - 1;
 
         let (name, args) = self.commands[0].split_first().unwrap();
