@@ -3,6 +3,7 @@ use super::*;
 use libast::Address;
 use libast::Deref;
 
+// Check we can obtain the address of a variable.
 pub fn address(i: &mut Info, s: &mut Scope, a: &mut Address,
                expt: Option<DataType>) -> Result<(), Error>
 {
@@ -14,9 +15,15 @@ pub fn address(i: &mut Info, s: &mut Scope, a: &mut Address,
     Ok(())
 }
 
+// Check if an expression is a pointer that can be
+// derefenced.
 pub fn deref(i: &mut Info, s: &mut Scope, d: &mut Deref,
              expt: Option<DataType>) -> Result<(), Error>
 {
+    if !i.is_unsafe() {
+        return Err(error!("cannot derefence ^ pointer, outside an 'unsafe'"));
+    }
+
     expr(i, s, &mut d.expr, match expt {
         None => None,
         Some(t) => Some(DataType::Pointer(Rc::new(t)))

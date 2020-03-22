@@ -21,7 +21,7 @@ use libast::{Assign, Return};
 use libast::{
     Expr, BinaryExpr, BoolExpr,
     CallExpr, IfExpr, WhileExpr,
-    CompExpr, LogicalExpr, Loop
+    CompExpr, LogicalExpr, Loop, UnsafeExpr
 };
 use libast::Function;
 pub use method::mpass;
@@ -339,6 +339,7 @@ fn expr(i: &mut Info, s: &mut Scope,
         Expr::Index(e) => complex::index(i, s, e, expt)?,
         Expr::Address(a) => ptr::address(i, s, a, expt)?,
         Expr::Deref(d) => ptr::deref(i, s, d, expt)?,
+        Expr::Unsafe(u) => unsafe_expr(i, s, u, expt)?,
         _ => unimplemented!()
     }
     Ok(())
@@ -450,6 +451,13 @@ fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
     Ok(())
 }
 
+fn unsafe_expr(i: &mut Info, s: &mut Scope, u: &mut UnsafeExpr,
+               expt: Option<DataType>) -> Result<(), Error>
+{
+    i.unsafe_run(|i| expr(i, s, &mut *u.expr, expt.clone()))?;
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Info {
     // function name
@@ -459,7 +467,8 @@ pub struct Info {
     // if a second pass is needed
     pass: bool,
     pcount: usize,
-    at: Option<Rc<DataRecord>>
+    at: Option<Rc<DataRecord>>,
+    unsafes: usize
 }
 
 impl Info {
@@ -470,8 +479,35 @@ impl Info {
             ret,
             pass: false,
             pcount: 1,
-            at: None
+            at: None,
+            unsafes: 0
         }
+    }
+
+    fn is_unsafe(&self) -> bool
+    {
+        self.unsafes > 0
+    }
+
+    fn unsafe_run<F>(&mut self, mut f: F) -> Result<(), Error>
+        where F: FnMut(&mut Info) -> Result<(), Error>
+    {
+        self.unsafes += 1;
+        f(self)?;
+        self.unsafes -= 1;
+        Ok(())
+    }
+
+    #[inline]
+    fn unsafe_inc(&mut self)
+    {
+        self.unsafes += 1;
+    }
+
+    #[inline]
+    fn unsafe_dec(&mut self)
+    {
+        self.unsafes -= 1;
     }
 
     fn get_count(&self) -> usize
@@ -492,8 +528,20 @@ impl Info {
 
 fn fun(i: &mut Info, s: &mut Scope, f: &mut Function) -> Result<(), Error>
 {
-    for e in &mut f.expr {
-        expr(i, s, e, None)?;
+    let u = f.prop.r#unsafe;
+
+    if u {
+        i.unsafe_inc();
+
+        for e in &mut f.expr {
+            expr(i, s, e, None)?;
+        }
+
+        i.unsafe_dec();
+    } else {
+        for e in &mut f.expr {
+            expr(i, s, e, None)?;
+        }
     }
 
     Ok(())

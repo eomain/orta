@@ -6,6 +6,8 @@ use libast::StructLiteral as Struct;
 use libast::ArrayLiteral as ArrayLit;
 use libast::Index;
 
+// Check for indexing into arrays, or pointers in the case of
+// pointer arithmetic.
 pub fn index(i: &mut Info, s: &mut Scope, e: &mut Index,
              expt: Option<DataType>) -> Result<(), Error>
 {
@@ -15,6 +17,9 @@ pub fn index(i: &mut Info, s: &mut Scope, e: &mut Index,
     let dtype = e.expr.get_type();
     let index = match dtype {
         Array(a) => {
+            if !i.is_unsafe() {
+                return Err(error!("cannot index [] array, outside an 'unsafe'"));
+            }
             if a.sizes.len() > 1 {
                 let mut a = (**a).clone();
                 a.sizes.remove(0);
