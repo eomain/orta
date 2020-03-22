@@ -158,11 +158,13 @@ pub fn array(c: &mut Context, a: &Array,
 {
     let dtype = type_cast(&a.dtype);
 
-    let r = c.get_reg();
+    let (r, alloc) = c.get_reg();
     let reg = Rc::new(r.clone());
 
-    let op = Alloca(reg, None);
-    v.push(Inst::new(op, dtype.clone()));
+    if alloc {
+        let op = Alloca(reg, None);
+        v.push(Inst::new(op, dtype.clone()));
+    }
     dimension(c, a, &r, v);
 
     (Type::Pointer(Box::new(dtype)), Value::Reg(r))

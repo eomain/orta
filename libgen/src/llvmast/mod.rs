@@ -108,13 +108,27 @@ impl Id {
     }
 }
 
+pub struct AssignVar {
+    pub reg: Register,
+    pub alloc: bool
+}
+
+impl AssignVar {
+    fn new(reg: Register, alloc: bool) -> Self
+    {
+        Self {
+            reg, alloc
+        }
+    }
+}
+
 pub struct FunInfo {
     entry: Option<Inst>,
     retval: Option<Register>,
     rtype: bool,
     count: usize,
     total: usize,
-    temp: Option<Register>
+    temp: Option<AssignVar>
 }
 
 impl FunInfo {
@@ -152,14 +166,14 @@ impl<'a> Context<'a> {
         }
     }
 
-    fn get_reg(&mut self) -> Register
+    fn get_reg(&mut self) -> (Register, bool)
     {
+        use std::mem::replace;
         if let Some(temp) = &self.info.temp {
-            let r = temp.clone();
-            self.info.temp = None;
-            r
+            let assign = replace(&mut self.info.temp, None).unwrap();
+            (assign.reg, assign.alloc)
         } else {
-            self.id.register()
+            (self.id.register(), true)
         }
     }
 }
@@ -727,31 +741,53 @@ fn assign_ptr(c: &mut Context, t: Type, val: Value, v: &mut Vec<Inst>) -> Value
     Value::Reg(reg)
 }
 
+fn assign_alloc(r: &Rc<Register>, t: Type, v: &mut Vec<Inst>)
+{
+    let alloc = Operation::Alloca(r.clone(), None);
+    v.push(Inst::new(alloc, t));
+}
+
+fn assign_store(r: &Rc<Register>, t: Type, val: Value, v: &mut Vec<Inst>)
+{
+    let store = Operation::Store(val, t.clone(), r.clone());
+    v.push(Inst::new(store, t));
+}
+
+fn assign_value(c: &mut Context, t: &Type, val: Value,
+                v: &mut Vec<Inst>) -> Value
+{
+    if let Type::Pointer(t) = t {
+        match val {
+            Value::Int(_) |
+            Value::Uint(_) => assign_ptr(c, *t.clone(), val, v),
+            _ => val
+        }
+    } else {
+        val
+    }
+}
+
 fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
 {
     let l = c.id.local(&a.id);
+    let alloc = a.declare;
     let complex = a.dtype.complex();
 
     if complex {
         let reg = Register::from(&l);
         c.id.insert(reg.as_ref(), VarType::Val);
-        c.info.temp = Some(reg.clone());
+        c.info.temp = Some(AssignVar::new(reg.clone(), alloc));
     }
 
-    let (t, mut val) = unary_expr(c, &a.expr, v);
+    let (dtype, val) = unary_expr(c, &a.expr, v);
     if !complex {
         let r = Rc::new(Register::from(&l));
-        let alloc = Operation::Alloca(r.clone(), None);
-        v.push(Inst::new(alloc, t.clone()));
-        if let Type::Pointer(t) = &t {
-            match val {
-                Value::Int(_) |
-                Value::Uint(_) => { val = assign_ptr(c, *t.clone(), val.clone(), v); },
-                _ => ()
-            }
+        if alloc {
+            assign_alloc(&r, dtype.clone(), v);
         }
-        let store = Operation::Store(val.clone(), t.clone(), r.clone());
-        v.push(Inst::new(store, t.clone()));
+
+        let value = assign_value(c, &dtype, val, v);
+        assign_store(&r, dtype, value, v);
         c.id.insert((*r).as_ref(), VarType::Ref);
     } else {
         c.info.temp = None;
