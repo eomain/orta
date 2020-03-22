@@ -50,6 +50,7 @@ pub enum Key {
     Foreign,
     Extern,
     Break,
+    Continue,
     Unsafe,
     Unique,
     Define
