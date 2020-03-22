@@ -3,5 +3,10 @@ fun main()
 {
     let i: int = 0xFF;
     let ptr: ^int = &i;
+
+    print("address: ");
     iprint((int)ptr);
+
+    print("value: ");
+    iprint(unsafe ^ptr);
 }
