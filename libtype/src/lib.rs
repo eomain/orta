@@ -23,14 +23,17 @@ pub use error::Error;
 // type checker
 pub struct TypeMeta {
     // if the main function is required
-    main: bool
+    main: bool,
+    // include runtime library
+    runtime: bool
 }
 
 impl TypeMeta {
-    pub fn new(main: bool) -> Self
+    pub fn new(main: bool, runtime: bool) -> Self
     {
         Self {
-            main
+            main,
+            runtime
         }
     }
 }
@@ -41,10 +44,10 @@ struct Env<'a> {
 }
 
 impl<'a> Env<'a> {
-    pub fn new() -> Self
+    pub fn new(meta: &TypeMeta) -> Self
     {
        Self {
-           table: Table::new()
+           table: Table::new(meta.runtime)
 	   }
     }
 }
@@ -145,7 +148,7 @@ fn require_main(meta: &TypeMeta, global: &Table) -> Result<(), Error>
 
 pub fn init(meta: TypeMeta, ast: &mut SyntaxTree) -> Result<(), Error>
 {
-    let mut env = Env::new();
+    let mut env = Env::new(&meta);
     let global = &mut env.table;
 
     insert_record(global, &ast.records);
