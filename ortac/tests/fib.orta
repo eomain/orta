@@ -1,5 +1,5 @@
 
-fun fib(n: int): int
+pure fun fib(n: int): int
 {
     if (n == 0 || n == 1)
         return n;
@@ -9,5 +9,9 @@ fun fib(n: int): int
 
 fun main()
 {
-    iprint(fib(10));
+    let i: int = 0;
+    while (i < 20) {
+        iprint(fib(i));
+        i += 1;
+    }
 }

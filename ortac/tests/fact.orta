@@ -1,5 +1,5 @@
 
-fun fact(n: int): int
+pure fun fact(n: int): int
 {
     if (n == 0 || n == 1)
         return 1;
@@ -9,5 +9,9 @@ fun fact(n: int): int
 
 fun main()
 {
-    iprint(fact(5));
+    let i: int = 0;
+    while (i < 20) {
+        iprint(fact(i));
+        i += 1;
+    }
 }
