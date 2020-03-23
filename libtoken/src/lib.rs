@@ -167,12 +167,29 @@ impl IntoToken for BitwiseOperator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AssignmentOperator {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod
+}
+
+impl IntoToken for AssignmentOperator {
+    fn token(&self) -> Token
+    {
+        Token::Operator(Operator::Assignment(self.clone()))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Operator {
     Unary(UnaryOperator),
     Arithmetic(ArithmeticOperator),
     Logical(LogicalOperator),
     Relational(RelationalOperator),
-    Bitwise(BitwiseOperator)
+    Bitwise(BitwiseOperator),
+    Assignment(AssignmentOperator)
 }
 
 // type for all primitive literal values
