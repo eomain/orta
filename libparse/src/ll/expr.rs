@@ -41,6 +41,21 @@ fn bin_from(e1: Expr, e2: Expr, op: AOp) -> BinaryExpr
     }
 }
 
+fn bit_from(e1: Expr, e2: Expr, op: BOp) -> BitExpr
+{
+    let mut e1 = Box::new(e1);
+    let mut e2 = Box::new(e2);
+    use BOp::*;
+    match op {
+        And => BitExpr::And(e1, e2),
+        Or => BitExpr::Or(e1, e2),
+        Xor => BitExpr::Xor(e1, e2),
+        Lshift => BitExpr::Lsh(e1, e2),
+        Rshift => BitExpr::Rsh(e1, e2),
+        _ => unreachable!()
+    }
+}
+
 pub fn bin(info: &mut ParseInfo, e: Expr, op: AOp) -> PResult<BinaryExpr>
 {
     let mut e2 = expr_value(info)?;
@@ -113,7 +128,12 @@ pub fn asn(info: &mut ParseInfo, id: String, op: ASOp) -> PResult<Assign>
         Sub => Expr::Binary(bin_from(e1, e2, AOp::Sub)),
         Mul => Expr::Binary(bin_from(e1, e2, AOp::Mul)),
         Div => Expr::Binary(bin_from(e1, e2, AOp::Div)),
-        Mod => Expr::Binary(bin_from(e1, e2, AOp::Mod))
+        Mod => Expr::Binary(bin_from(e1, e2, AOp::Mod)),
+        And => Expr::Bit(bit_from(e1, e2, BOp::And)),
+        Or => Expr::Bit(bit_from(e1, e2, BOp::Or)),
+        Xor => Expr::Bit(bit_from(e1, e2, BOp::Xor)),
+        Lshift => Expr::Bit(bit_from(e1, e2, BOp::Lshift)),
+        Rshift => Expr::Bit(bit_from(e1, e2, BOp::Rshift)),
     };
     Ok(Assign::new(&id, DataType::Unset, e, false))
 }
