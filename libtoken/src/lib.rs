@@ -108,7 +108,10 @@ impl IntoToken for ArithmeticOperator {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnaryOperator {
     Not, // negate
-    Sub
+    Add,
+    Sub,
+    Inc,
+    Dec
 }
 
 impl IntoToken for UnaryOperator {
