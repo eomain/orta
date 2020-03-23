@@ -172,7 +172,12 @@ pub enum AssignmentOperator {
     Sub,
     Mul,
     Div,
-    Mod
+    Mod,
+    And,
+    Or,
+    Xor,
+    Lshift,
+    Rshift
 }
 
 impl IntoToken for AssignmentOperator {
