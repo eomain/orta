@@ -1,4 +1,5 @@
 
+mod bitwise;
 mod cast;
 mod complex;
 mod method;
@@ -326,6 +327,7 @@ fn expr(i: &mut Info, s: &mut Scope,
         Expr::Binary(b) => bin(i, s, b, expt)?,
         Expr::Comp(c) => cmp(i, s, c, expt)?,
         Expr::Logical(l) => log(i, s, l, expt)?,
+        Expr::Bit(b) => bitwise::bit(i, s, b, expt)?,
         Expr::If(f) => conditional(i, s, f, expt)?,
         Expr::Loop(l) => loops(i, s, l, expt)?,
         Expr::While(w) => loop_while(i, s, w, expt)?,
