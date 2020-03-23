@@ -608,6 +608,9 @@ fn log(c: &mut Context, l: &ast::LogicalExpr,
         },
         Not(a) => {
             let id = c.id.register();
+            let (t, val) = unary_expr(c, a, v);
+            let op = Operation::Xor(id.clone(), val, Value::Int(1));
+            v.push(Inst::new(op, t));
             id
         }
     };
