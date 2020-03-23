@@ -483,6 +483,12 @@ pub enum Operation {
     Bitcast(Register, Value, Type),
     Icmp(Register, CmpType, Type, Value, Value),
     Phi(Register, Vec<(Value, Register)>),
+    Shl(Register, Value, Value),
+    Lshr(Register, Value, Value),
+    Ashr(Register, Value, Value),
+    And(Register, Value, Value),
+    Or(Register, Value, Value),
+    Xor(Register, Value, Value),
     Label(String)
 }
 
@@ -525,6 +531,12 @@ impl Operation {
             Bitcast(_, _, _) => "bitcast",
             Icmp(_, _, _, _, _) => "icmp",
             Phi(_, _) => "phi",
+            Shl(_, _, _) => "shl",
+            Lshr(_, _, _) => "lshr",
+            Ashr(_, _, _) => "ashr",
+            And(_, _, _) => "and",
+            Or(_, _, _) => "or",
+            Xor(_, _, _) => "xor",
             Label(s) => &s
         }
     }
@@ -544,7 +556,13 @@ impl Operation {
             Srem(_, a, b) |
             Frem(_, a, b) |
             Udiv(_, a, b) |
-            Urem(_, a, b) => Some(format!("{}, {}", a, b)),
+            Urem(_, a, b) |
+            Shl(_, a, b) |
+            Lshr(_, a, b) |
+            Ashr(_, a, b) |
+            And(_, a, b) |
+            Or(_, a, b) |
+            Xor(_, a, b) => Some(format!("{}, {}", a, b)),
             Ret(v) => match v {
                 None => None,
                 Some(v) => Some(format!("{}", v))
@@ -611,7 +629,13 @@ impl Operation {
             Srem(r, _, _) |
             Frem(r, _, _) |
             Udiv(r, _, _) |
-            Urem(r, _, _) => Some(&r.id),
+            Urem(r, _, _) |
+            Shl(r, _, _) |
+            Lshr(r, _, _) |
+            Ashr(r, _, _) |
+            And(r, _, _) |
+            Or(r, _, _) |
+            Xor(r, _, _) => Some(&r.id),
             Alloca(r, _) => Some(&r.id),
             Call(r, _, _) => if let Some(r) = r { Some(&r.id) } else { None },
             Load(r, _, _) => Some(&r.id),
