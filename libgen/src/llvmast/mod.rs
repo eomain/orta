@@ -899,15 +899,15 @@ fn loops(c: &mut Context, w: &ast::Loop, v: &mut Vec<Inst>)
 // Convert a while loop into LLVM
 fn loop_while(c: &mut Context, w: &ast::WhileExpr, v: &mut Vec<Inst>)
 {
-    let (_, val) = bexpr(c, &w.cond, v);
     let (br, brop) = c.id.label();
     let (start, sop) = c.id.label();
     let (ends, endop) = c.id.label();
 
     let op = Operation::BrCond(Register::new(&br));
     v.push(Inst::new(op, Type::Label));
-    let op = Operation::Br(val, Register::new(&start), Register::new(&ends));
     v.push(Inst::new(brop, Type::Label));
+    let (_, val) = bexpr(c, &w.cond, v);
+    let op = Operation::Br(val, Register::new(&start), Register::new(&ends));
     v.push(Inst::new(op, Type::Int(1)));
     v.push(Inst::new(sop, Type::Label));
 
