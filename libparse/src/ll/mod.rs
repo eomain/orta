@@ -399,6 +399,19 @@ fn lop(info: &mut ParseInfo) -> Option<LOp>
 }
 
 #[inline]
+fn bop(info: &mut ParseInfo) -> Option<BOp>
+{
+    if let Some(token) = info.look() {
+        if let Token::Operator(op) = token {
+            if let Operator::Bitwise(op) = op {
+                return Some(*op);
+            }
+        }
+    }
+    None
+}
+
+#[inline]
 fn asop(info: &mut ParseInfo) -> Option<ASOp>
 {
     if let Some(token) = info.look() {
@@ -553,6 +566,15 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
 
 fn cexpr(info: &mut ParseInfo) -> PResult<Expr>
 {
+    let comp = match info.look() {
+        Some(&Token::Operator(Bitwise(BOp::Comp))) => {
+            info.next();
+            true
+        },
+        _ => false
+    };
+
+
     let mut e = {
         if let Some(&Token::Lparen) = info.look() {
             Expr::Cast(cast(info)?)
@@ -570,6 +592,18 @@ fn cexpr(info: &mut ParseInfo) -> PResult<Expr>
         info.next();
         e = Expr::Comp(expr::cmp(info, e, op)?);
     }
+
+    if let Some(op) = bop(info) {
+        if op != BOp::Comp {
+            info.next();
+            e = Expr::Bit(expr::bit(info, e, op)?);
+        }
+    }
+
+    if comp {
+        e = Expr::Bit(expr::bit(info, e, BOp::Comp)?);
+    }
+
     Ok(e)
 }
 

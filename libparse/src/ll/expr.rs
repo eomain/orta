@@ -7,6 +7,7 @@ use libtoken::Operator;
 use libtoken::ArithmeticOperator as AOp;
 use libtoken::LogicalOperator as LOp;
 use libtoken::RelationalOperator as ROp;
+use libtoken::BitwiseOperator as BOp;
 use libtoken::AssignmentOperator as ASOp;
 use libast::Literal;
 use libast::Variable;
@@ -15,6 +16,7 @@ use libast::Expr;
 use libast::BoolExpr;
 use libast::BinaryExpr;
 use libast::LogicalExpr;
+use libast::BitExpr;
 use libast::CompExpr;
 
 pub fn bexpr(info: &mut ParseInfo) -> PResult<BoolExpr>
@@ -84,6 +86,21 @@ pub fn log(info: &mut ParseInfo, e: Expr, op: LOp) -> PResult<LogicalExpr>
     })
 }
 
+pub fn bit(info: &mut ParseInfo, e: Expr, op: BOp) -> PResult<BitExpr>
+{
+    let e1 = Box::new(e);
+    use BOp::*;
+    Ok(match op {
+        And => BitExpr::And(e1, Box::new(expr(info)?)),
+        Or => BitExpr::Or(e1, Box::new(expr(info)?)),
+        Xor => BitExpr::Xor(e1, Box::new(expr(info)?)),
+        Comp => BitExpr::Comp(e1),
+        Lshift => BitExpr::Lsh(e1, Box::new(expr(info)?)),
+        Rshift => BitExpr::Rsh(e1, Box::new(expr(info)?)),
+        _ => unreachable!()
+    })
+}
+
 pub fn asn(info: &mut ParseInfo, id: String, op: ASOp) -> PResult<Assign>
 {
     let e1 = Expr::from(Variable::new(&id));
@@ -149,6 +166,20 @@ mod tests {
         extern crate liblex;
 
         let tokens = liblex::scan(r#"1 == 1 && true != false"#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let expr = expr(&mut info).unwrap();
+        println!("{:?}", expr);
+    }
+
+    #[test]
+    fn bit_test()
+    {
+        extern crate liblex;
+
+        let tokens = liblex::scan(r#"
+            a << b
+        "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
         let expr = expr(&mut info).unwrap();
