@@ -482,6 +482,7 @@ pub enum Operation {
     SiToFp(Register, Value, Type),
     Bitcast(Register, Value, Type),
     Icmp(Register, CmpType, Type, Value, Value),
+    Fcmp(Register, FcmpType, Type, Value, Value),
     Phi(Register, Vec<(Value, Register)>),
     Shl(Register, Value, Value),
     Lshr(Register, Value, Value),
@@ -530,6 +531,7 @@ impl Operation {
             SiToFp(_, _, _) => "sitofp",
             Bitcast(_, _, _) => "bitcast",
             Icmp(_, _, _, _, _) => "icmp",
+            Fcmp(_, _, _, _, _) => "fcmp",
             Phi(_, _) => "phi",
             Shl(_, _, _) => "shl",
             Lshr(_, _, _) => "lshr",
@@ -609,6 +611,9 @@ impl Operation {
             Icmp(_, c, t, v1, v2) => {
                 Some(format!("{} {} {}, {}", c, t, v1, v2))
             },
+            Fcmp(_, c, t, v1, v2) => {
+                Some(format!("{} {} {}, {}", c, t, v1, v2))
+            },
             Phi(_, v) => Some(format!("{}", phi_list(v))),
             _ => None
         }
@@ -646,6 +651,7 @@ impl Operation {
             FpToSi(r, _, _) | UiToFp(r, _, _) | SiToFp(r, _, _) |
             Bitcast(r, _, _) => Some(&r.id),
             Icmp(r, _, _, _, _) => Some(&r.id),
+            Fcmp(r, _, _, _, _) => Some(&r.id),
             Phi(r, _) => Some(&r.id),
             _ => None
         }
@@ -681,6 +687,31 @@ impl fmt::Display for CmpType {
             Sge => "sge",
             Slt => "slt",
             Sle => "sle"
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FcmpType {
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+}
+
+impl fmt::Display for FcmpType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        use FcmpType::*;
+        write!(f, "{}", match self {
+            Eq => "oeq",
+            Ne => "one",
+            Gt => "ogt",
+            Ge => "oge",
+            Lt => "olt",
+            Le => "ole",
         })
     }
 }

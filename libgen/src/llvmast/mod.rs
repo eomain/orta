@@ -516,6 +516,41 @@ fn icmp(c: &mut Context, e: &ast::CompExpr,
     (op, id)
 }
 
+fn fcmp(c: &mut Context, e: &ast::CompExpr,
+        v: &mut Vec<Inst>) -> (Operation, Register)
+{
+    let id = c.id.register();
+
+    use ast::CompExpr::*;
+    let op = match e {
+        Eq(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            Operation::Fcmp(id.clone(), FcmpType::Eq, t, v1, v2)
+        },
+        Ne(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            Operation::Fcmp(id.clone(), FcmpType::Ne, t, v1, v2)
+        },
+        Gt(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            Operation::Fcmp(id.clone(), FcmpType::Gt, t, v1, v2)
+        },
+        Lt(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            Operation::Fcmp(id.clone(), FcmpType::Lt, t, v1, v2)
+        },
+        Ge(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            Operation::Fcmp(id.clone(), FcmpType::Ge, t, v1, v2)
+        },
+        Le(a, b) => {
+            let (t, v1, v2) = bin_expr(c, (a, b), v);
+            Operation::Fcmp(id.clone(), FcmpType::Le, t, v1, v2)
+        }
+    };
+    (op, id)
+}
+
 fn cmp(c: &mut Context, e: &ast::CompExpr,
        v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
@@ -523,6 +558,7 @@ fn cmp(c: &mut Context, e: &ast::CompExpr,
     use ast::DataType::*;
     let (op, id) = match e.get_type().derived() {
         Integer(_) | Pointer(_) => icmp(c, e, v),
+        Float(_) => fcmp(c, e, v),
         _ => unreachable!()
     };
 
