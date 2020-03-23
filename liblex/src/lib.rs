@@ -361,16 +361,18 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
 
     match c {
         '+' => {
-            /*if lexer.check('+') {
-                unimplemented!()
-            } else*/ if lexer.check('=') {
+            if lexer.check('+') {
+                UOp::Inc.token()
+            } else if lexer.check('=') {
                 ASOp::Add.token()
             } else {
                 Add.token()
             }
         },
         '-' => {
-            if lexer.check('=') {
+            if lexer.check('-') {
+                UOp::Dec.token()
+            } else if lexer.check('=') {
                 ASOp::Sub.token()
             } else {
                 Sub.token()
@@ -759,5 +761,20 @@ mod tests {
         assert_eq!(tokens.next(), Some(&Xor.token()));
         assert_eq!(tokens.next(), Some(&Lshift.token()));
         assert_eq!(tokens.next(), Some(&Rshift.token()));
+    }
+
+    #[test]
+    fn unary()
+    {
+        use libtoken::UnaryOperator::*;
+
+        let input = r#"
+            ++ --
+        "#.chars().collect();
+        let stream = scan(input).unwrap();
+
+        let mut tokens = stream.iter();
+        assert_eq!(tokens.next(), Some(&Inc.token()));
+        assert_eq!(tokens.next(), Some(&Dec.token()));
     }
 }
