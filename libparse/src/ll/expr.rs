@@ -91,13 +91,12 @@ pub fn cmp(info: &mut ParseInfo, e: Expr, op: ROp) -> PResult<CompExpr>
 
 pub fn log(info: &mut ParseInfo, e: Expr, op: LOp) -> PResult<LogicalExpr>
 {
-    let e2 = Box::new(expr(info)?);
     let e1 = Box::new(e);
     use LOp::*;
     Ok(match op {
-        And => LogicalExpr::And(e1, e2),
-        Or => LogicalExpr::Or(e1, e2),
-        _ => unreachable!()
+        And => LogicalExpr::And(e1, Box::new(expr(info)?)),
+        Or => LogicalExpr::Or(e1, Box::new(expr(info)?)),
+        Not => LogicalExpr::Not(e1)
     })
 }
 
@@ -111,8 +110,7 @@ pub fn bit(info: &mut ParseInfo, e: Expr, op: BOp) -> PResult<BitExpr>
         Xor => BitExpr::Xor(e1, Box::new(expr(info)?)),
         Comp => BitExpr::Comp(e1),
         Lshift => BitExpr::Lsh(e1, Box::new(expr(info)?)),
-        Rshift => BitExpr::Rsh(e1, Box::new(expr(info)?)),
-        _ => unreachable!()
+        Rshift => BitExpr::Rsh(e1, Box::new(expr(info)?))
     })
 }
 
@@ -154,14 +152,18 @@ mod tests {
     {
         extern crate liblex;
         {
-            let tokens = liblex::scan(r#"1 * 2 + 3"#.chars().collect()).unwrap();
+            let tokens = liblex::scan(r#"
+                1 * 2 + 3
+            "#.chars().collect()).unwrap();
 
             let mut info = ParseInfo::new(tokens);
             let expr = expr(&mut info).unwrap();
             println!("{:?}", expr);
         }
 
-        let tokens = liblex::scan(r#"1 * 2 / 3 % 6"#.chars().collect()).unwrap();
+        let tokens = liblex::scan(r#"
+            1 * 2 / 3 % 6
+        "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
         let expr = expr(&mut info).unwrap();
@@ -173,7 +175,9 @@ mod tests {
     {
         extern crate liblex;
 
-        let tokens = liblex::scan(r#"1 == 1"#.chars().collect()).unwrap();
+        let tokens = liblex::scan(r#"
+            1 == 1
+        "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
         let expr = expr(&mut info).unwrap();
@@ -185,11 +189,21 @@ mod tests {
     {
         extern crate liblex;
 
-        let tokens = liblex::scan(r#"1 == 1 && true != false"#.chars().collect()).unwrap();
+        let tokens = liblex::scan(r#"
+            1 == 1 && true != false
+        "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
-        let expr = expr(&mut info).unwrap();
-        println!("{:?}", expr);
+        let e = expr(&mut info).unwrap();
+        println!("{:?}", e);
+
+        let tokens = liblex::scan(r#"
+            !true
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let e = expr(&mut info).unwrap();
+        println!("{:?}", e);
     }
 
     #[test]

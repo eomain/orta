@@ -17,6 +17,7 @@ use libtoken::IntoToken;
 use libtoken::Key;
 use libtoken::Prim;
 use libtoken::Operator;
+use libtoken::Operator::Logical;
 use libtoken::Operator::Bitwise;
 use libtoken::Operator::Assignment;
 use libtoken::ArithmeticOperator as AOp;
@@ -566,6 +567,14 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
 
 fn cexpr(info: &mut ParseInfo) -> PResult<Expr>
 {
+    let not = match info.look() {
+        Some(&Token::Operator(Logical(LOp::Not))) => {
+            info.next();
+            true
+        },
+        _ => false
+    };
+
     let comp = match info.look() {
         Some(&Token::Operator(Bitwise(BOp::Comp))) => {
             info.next();
@@ -582,6 +591,10 @@ fn cexpr(info: &mut ParseInfo) -> PResult<Expr>
             expr_value(info)?
         }
     };
+
+    if not {
+        e = Expr::Logical(expr::log(info, e, LOp::Not)?);
+    }
 
     if comp {
         e = Expr::Bit(expr::bit(info, e, BOp::Comp)?);
@@ -612,8 +625,10 @@ fn expr(info: &mut ParseInfo) -> PResult<Expr>
     let mut e = cexpr(info)?;
 
     if let Some(op) = lop(info) {
-        info.next();
-        e = Expr::Logical(expr::log(info, e, op)?);
+        if op != LOp::Not {
+            info.next();
+            e = Expr::Logical(expr::log(info, e, op)?);
+        }
     }
 
     Ok(e)
