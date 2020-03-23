@@ -414,6 +414,8 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
         '&' => {
             if lexer.check('&') {
                 LOp::And.token()
+            } else if lexer.check('=') {
+                ASOp::And.token()
             } else {
                 BOp::And.token()
             }
@@ -421,13 +423,19 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
         '|' => {
             if lexer.check('|') {
                 LOp::Or.token()
+            } else if lexer.check('=') {
+                ASOp::Or.token()
             } else {
                 BOp::Or.token()
             }
         },
         '>' => {
             if lexer.check('>') {
-                BOp::Rshift.token()
+                if lexer.check('=') {
+                    ASOp::Rshift.token()
+                } else {
+                    BOp::Rshift.token()
+                }
             } else if lexer.check('=') {
                 ROp::Ge.token()
             } else {
@@ -436,14 +444,24 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
         },
         '<' => {
             if lexer.check('<') {
-                BOp::Lshift.token()
+                if lexer.check('=') {
+                    ASOp::Lshift.token()
+                } else {
+                    BOp::Lshift.token()
+                }
             } else if lexer.check('=') {
                 ROp::Le.token()
             } else {
                 ROp::Lt.token()
             }
         },
-        '^' => BOp::Xor.token(),
+        '^' => {
+            if lexer.check('=') {
+                ASOp::Xor.token()
+            } else {
+                BOp::Xor.token()
+            }
+        },
         '~' => BOp::Comp.token(),
         _ => unreachable!()
     }
@@ -726,7 +744,7 @@ mod tests {
         use libtoken::AssignmentOperator::*;
 
         let input = r#"
-            += -= *= /= %=
+            += -= *= /= %= &= |= ^= <<= >>=
         "#.chars().collect();
         let stream = scan(input).unwrap();
 
@@ -736,5 +754,10 @@ mod tests {
         assert_eq!(tokens.next(), Some(&Mul.token()));
         assert_eq!(tokens.next(), Some(&Div.token()));
         assert_eq!(tokens.next(), Some(&Mod.token()));
+        assert_eq!(tokens.next(), Some(&And.token()));
+        assert_eq!(tokens.next(), Some(&Or.token()));
+        assert_eq!(tokens.next(), Some(&Xor.token()));
+        assert_eq!(tokens.next(), Some(&Lshift.token()));
+        assert_eq!(tokens.next(), Some(&Rshift.token()));
     }
 }
