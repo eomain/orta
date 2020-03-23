@@ -7,6 +7,7 @@ use libtoken::Operator;
 use libtoken::ArithmeticOperator as AOp;
 use libtoken::LogicalOperator as LOp;
 use libtoken::RelationalOperator as ROp;
+use libtoken::AssignmentOperator as ASOp;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
@@ -83,6 +84,23 @@ pub fn log(info: &mut ParseInfo, e: Expr, op: LOp) -> PResult<LogicalExpr>
     })
 }
 
+pub fn asn(info: &mut ParseInfo, id: String, op: ASOp) -> PResult<Assign>
+{
+    let e1 = Expr::from(Variable::new(&id));
+    info.next();
+    info.next();
+    let e2 = expr(info)?;
+    use ASOp::*;
+    let e = match op {
+        Add => Expr::Binary(bin_from(e1, e2, AOp::Add)),
+        Sub => Expr::Binary(bin_from(e1, e2, AOp::Sub)),
+        Mul => Expr::Binary(bin_from(e1, e2, AOp::Mul)),
+        Div => Expr::Binary(bin_from(e1, e2, AOp::Div)),
+        Mod => Expr::Binary(bin_from(e1, e2, AOp::Mod))
+    };
+    Ok(Assign::new(&id, DataType::Unset, e, false))
+}
+
 #[cfg(test)]
 mod tests {
     extern crate liblex;
@@ -131,6 +149,20 @@ mod tests {
         extern crate liblex;
 
         let tokens = liblex::scan(r#"1 == 1 && true != false"#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let expr = expr(&mut info).unwrap();
+        println!("{:?}", expr);
+    }
+
+    #[test]
+    fn asn_test()
+    {
+        extern crate liblex;
+
+        let tokens = liblex::scan(r#"
+            a += 5;
+        "#.chars().collect()).unwrap();
 
         let mut info = ParseInfo::new(tokens);
         let expr = expr(&mut info).unwrap();

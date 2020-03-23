@@ -18,10 +18,12 @@ use libtoken::Key;
 use libtoken::Prim;
 use libtoken::Operator;
 use libtoken::Operator::Bitwise;
+use libtoken::Operator::Assignment;
 use libtoken::ArithmeticOperator as AOp;
 use libtoken::LogicalOperator as LOp;
 use libtoken::RelationalOperator as ROp;
 use libtoken::BitwiseOperator as BOp;
+use libtoken::AssignmentOperator as ASOp;
 use libast::Literal;
 use libast::Variable;
 use libast::Value;
@@ -396,6 +398,19 @@ fn lop(info: &mut ParseInfo) -> Option<LOp>
     None
 }
 
+#[inline]
+fn asop(info: &mut ParseInfo) -> Option<ASOp>
+{
+    if let Some(token) = info.look() {
+        if let Token::Operator(op) = token {
+            if let Operator::Assignment(op) = op {
+                return Some(*op);
+            }
+        }
+    }
+    None
+}
+
 fn at(info: &mut ParseInfo) -> PResult<Expr>
 {
     token!(Token::At, info.next())?;
@@ -490,10 +505,13 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
     let mut e = match token {
         Token::Lsqr => Ok(Expr::Value(Value::from(array::literal(info)?))),
         Token::At => Ok(at(info)?),
-        Token::Symbol(_) => {
+        Token::Symbol(s) => {
             match info.peek() {
                 Some(&Token::Lparen) => Ok(Expr::Call(call(info)?)),
                 Some(&Token::Assign) => Ok(Expr::Assign(Box::new(assign(info)?))),
+                Some(&Token::Operator(Assignment(op))) => {
+                    Ok(Expr::Assign(Box::new(expr::asn(info, s.clone(), op)?)))
+                },
                 _ => Ok(Expr::Value(value(info)?))
             }
         },
