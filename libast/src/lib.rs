@@ -512,6 +512,7 @@ pub enum Expr {
     Binary(BinaryExpr),
     Comp(CompExpr),
     Logical(LogicalExpr),
+    Bit(BitExpr),
     If(IfExpr),
     Loop(Loop),
     While(WhileExpr),
@@ -537,6 +538,7 @@ impl Typed for Expr {
             Expr::Binary(b) => b.get_type(),
             Expr::Comp(c) => c.get_type(),
             Expr::Logical(l) => l.get_type(),
+            Expr::Bit(b) => b.get_type(),
             Expr::Return(r) => r.get_type(),
             Expr::Call(c) => c.get_type(),
             Expr::Cast(c) => c.get_type(),
@@ -687,6 +689,31 @@ impl Typed for CompExpr {
             Lt(e1, _) |
             Ge(e1, _) |
             Le(e1, _) => e1.get_type()
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BitExpr {
+    And(Box<Expr>, Box<Expr>),
+    Or(Box<Expr>, Box<Expr>),
+    Xor(Box<Expr>, Box<Expr>),
+    Comp(Box<Expr>),
+    Lsh(Box<Expr>, Box<Expr>),
+    Rsh(Box<Expr>, Box<Expr>)
+}
+
+impl Typed for BitExpr {
+    fn get_type(&self) -> &DataType
+    {
+        use BitExpr::*;
+        match self {
+            And(e1, _) |
+            Or(e1, _) |
+            Xor(e1, _) |
+            Comp(e1) |
+            Lsh(e1, _) |
+            Rsh(e1, _) => e1.get_type()
         }
     }
 }
