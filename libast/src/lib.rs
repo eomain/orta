@@ -452,6 +452,13 @@ impl Typed for Variable {
     }
 }
 
+impl From<Variable> for Expr {
+    fn from(v: Variable) -> Self
+    {
+        Expr::Value(Value::Variable(v))
+    }
+}
+
 // A value that can be either a
 // literal or a value denoted by a variable
 #[derive(Debug, Clone, PartialEq)]
