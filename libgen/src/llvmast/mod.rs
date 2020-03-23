@@ -1,4 +1,5 @@
 
+mod bitwise;
 mod cast;
 mod complex;
 mod method;
@@ -335,7 +336,7 @@ fn value(c: &mut Context, val: &ast::Value,
 {
     use ast::Value::*;
     Some(vec![match val {
-        Unit => unimplemented!(),
+        Unit => return None,
         Literal(l, t) => literal(c, l, &t, v),
         Complex(e) => complex::complex(c, e, v),
         Variable(var) => variable(c, var, v)
@@ -716,6 +717,7 @@ fn expr(c: &mut Context, e: &ast::Expr,
         Binary(b) => bin(c, b, v),
         Comp(e) => cmp(c, e, v),
         Logical(l) => log(c, l, v),
+        Bit(b) => bitwise::bit(c, b, v),
         If(f) => { conditional(c, f, v); None },
         Loop(l) => { loops(c, l, v); None },
         While(w) => { loop_while(c, w, v); None },
