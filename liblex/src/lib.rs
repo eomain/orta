@@ -408,7 +408,7 @@ fn operator(lexer: &mut Lexer, c: char) -> Token
             if lexer.check('=') {
                 ROp::Ne.token()
             } else {
-                UOp::Not.token()
+                LOp::Not.token()
             }
         },
         '&' => {
