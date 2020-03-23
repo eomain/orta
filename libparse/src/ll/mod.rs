@@ -583,6 +583,10 @@ fn cexpr(info: &mut ParseInfo) -> PResult<Expr>
         }
     };
 
+    if comp {
+        e = Expr::Bit(expr::bit(info, e, BOp::Comp)?);
+    }
+
     if let Some(op) = aop(info) {
         info.next();
         e = Expr::Binary(expr::bin(info, e, op)?);
@@ -598,10 +602,6 @@ fn cexpr(info: &mut ParseInfo) -> PResult<Expr>
             info.next();
             e = Expr::Bit(expr::bit(info, e, op)?);
         }
-    }
-
-    if comp {
-        e = Expr::Bit(expr::bit(info, e, BOp::Comp)?);
     }
 
     Ok(e)
