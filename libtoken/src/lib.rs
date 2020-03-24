@@ -51,6 +51,7 @@ pub enum Key {
     Extern,
     Break,
     Continue,
+    Goto,
     Unsafe,
     Unique,
     Define
