@@ -22,7 +22,7 @@ enum VarType {
     Ref
 }
 
-impl From<&Type> for VarType {
+/*impl From<&Type> for VarType {
     fn from(t: &Type) -> Self
     {
         use VarType::*;
@@ -36,7 +36,7 @@ impl From<&Type> for VarType {
             _ => Val
         }
     }
-}
+}*/
 
 pub struct Id {
     lindex: usize,
@@ -206,6 +206,7 @@ fn type_cast(dtype: &ast::DataType) -> Type
             }
         },
         Boolean => Type::Int(1),
+        Char => Type::Uint(32),
         Array(a) => {
             let sizes: Vec<_> = a.sizes.iter().rev().collect();
             let mut dtype = type_cast(&a.dtype);
@@ -282,6 +283,7 @@ fn literal(c: &mut Context, l: &ast::Literal,
             }
         },
         Float(f) => (type_cast(t), Value::Float(*f)),
+        Character(c) => (type_cast(t), Value::Uint(*c as usize)),
         String(s) => {
             use ast::DataType::Slice;
 
