@@ -775,6 +775,29 @@ impl WhileExpr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum ControlFlow {
+    Break,
+    Continue,
+    Goto(String)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AssignExpr {
+    aexpr: Box<Expr>,
+    expr: Box<Expr>
+}
+
+impl AssignExpr {
+    pub fn new(aexpr: Expr, expr: Expr) -> Self
+    {
+        Self {
+            aexpr: Box::new(aexpr),
+            expr: Box::new(expr)
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Return {
     pub dtype: DataType,
     pub expr: Option<Box<Expr>>
