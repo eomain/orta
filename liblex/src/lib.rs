@@ -338,11 +338,40 @@ static ESCAPE_CHARS: [(&str, &str); 4] = [
     ("\\\\", "\\")
 ];
 
+fn character(lexer: &mut Lexer) -> Result<Token, Error>
+{
+    let cur = lexer.cursor.clone();
+    let c = match lexer.next() {
+        None => return Err(Error::Custom("expected character")),
+        Some(c) => c
+    };
+    let msg = "expected escape character";
+    let c = match c {
+        '\\' => match lexer.next().ok_or(Error::Custom(msg))? {
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            '0' => '\0',
+            '\\' => '\\',
+            _ => return Err(Error::Custom(msg))
+        },
+        _ => c
+    };
+    let token = Token::Literal(libtoken::Literal::Character(c));
+    if Some('\'') != lexer.ahead() {
+        return Err(Error::QuouteEnd(cur));
+    }
+    lexer.next();
+    Ok(token)
+}
+
 fn string(lexer: &mut Lexer) -> Result<Token, Error>
 {
-    lexer.next();
+    if Some('\"') != lexer.ahead() {
+        lexer.next();
+        lexer.read_while(|c| c != '"');
+    }
     let c = lexer.cursor.clone();
-    lexer.read_while(|c| c != '"');
     let mut s = lexer.string.to_string();
     for e in &ESCAPE_CHARS {
         s = escape(s, e.0, e.1);
@@ -536,6 +565,9 @@ pub fn scan(input: Vec<char>) -> Result<TokenStream, Error>
                 },
                 '1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => {
                     number(&mut lexer)
+                },
+                '\'' => {
+                    character(&mut lexer)?
                 },
                 '"' => {
                     string(&mut lexer)?
@@ -776,5 +808,34 @@ mod tests {
         let mut tokens = stream.iter();
         assert_eq!(tokens.next(), Some(&Inc.token()));
         assert_eq!(tokens.next(), Some(&Dec.token()));
+    }
+
+    #[test]
+    fn character()
+    {
+        use libtoken::Literal::*;
+
+        let input = r#"
+            'n'
+        "#.chars().collect();
+        let stream = scan(input).unwrap();
+
+        let mut tokens = stream.iter();
+        assert_eq!(tokens.next(), Some(&'n'.token()));
+    }
+
+    #[test]
+    fn string()
+    {
+        use libtoken::Literal::*;
+
+        let input = r#"
+            "" "input"
+        "#.chars().collect();
+        let stream = scan(input).unwrap();
+
+        let mut tokens = stream.iter();
+        assert_eq!(tokens.next(), Some(&String("".into()).token()));
+        assert_eq!(tokens.next(), Some(&String("input".into()).token()));
     }
 }
