@@ -243,24 +243,10 @@ impl IntoToken for bool {
     }
 }
 
-impl TryIntoToken for char {
-    fn token(&self) -> Option<Token>
+impl IntoToken for char {
+    fn token(&self) -> Token
     {
-        let token = match self {
-            '(' => Token::Lparen,
-            ')' => Token::Rparen,
-            '[' => Token::Lsqr,
-            ']' => Token::Rsqr,
-            '{' => Token::Lbrace,
-            '}' => Token::Rbrace,
-            '.' => Token::Period,
-            ':' => Token::Colon,
-            ';' => Token::Semi,
-            ',' => Token::Comma,
-            _ => return None
-        };
-
-        Some(token)
+        Token::Literal(Literal::Character(*self))
     }
 }
 
@@ -282,6 +268,13 @@ impl IntoToken for str {
     fn token(&self) -> Token
     {
         Token::Symbol(self.into())
+    }
+}
+
+impl IntoToken for Literal {
+    fn token(&self) -> Token
+    {
+        Token::Literal(self.clone())
     }
 }
 
