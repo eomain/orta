@@ -72,6 +72,7 @@ fn literal(s: &mut Scope, l: &Literal) -> DataType
             })
         },
         Literal::Boolean(_) => DataType::Boolean,
+        Literal::Character(_) => DataType::Char,
         Literal::String(_) => DataType::String,
         _ => unimplemented!()
     }

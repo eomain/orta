@@ -17,6 +17,8 @@ fn castable(a: &DataType, b: &DataType) -> bool
         (Pointer(_), Pointer(_)) |
         (Float(_), Integer(_)) |
         (Integer(_), Float(_)) |
+        (Integer(_), Char) |
+        (Char, Integer(_)) |
         (Integer(_), Pointer(_)) |
         (Pointer(_), Integer(_)) => true,
         _ => false
