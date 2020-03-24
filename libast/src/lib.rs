@@ -173,6 +173,7 @@ impl fmt::Display for DataType {
             DataType::Unit => "()",
             DataType::Integer(i) => i.into(),
             DataType::Float(f) => f.into(),
+            DataType::Char => "char",
             DataType::Boolean => "bool",
             DataType::String => "string",
             DataType::Array(a) => {
