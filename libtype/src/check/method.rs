@@ -14,11 +14,53 @@ pub fn at(i: &mut Info, s: &mut Scope,
     Ok(())
 }
 
+fn call(info: &mut Info, s: &mut Scope,
+        c: &mut CallExpr, expt: Option<DataType>, name: &str) -> Result<(), Error>
+{
+    // get the argument types and the return type
+    let (args, ret) = match s.find_struct_method(name, &c.name) {
+        None => return Err(error!("undefined method '{}'", &c.name)),
+        Some(info) => {
+            if let DataType::Function(v, r) = &info.dtype.derived() {
+                (v.clone(), r.clone())
+            } else {
+                return Err(error!("`{}` is not a method", &c.name));
+            }
+        }
+    };
+
+    let (a, b) = (args.len(), c.args.len());
+    if a != b {
+        return Err(error!(
+            "incorrect number of positional arguments\n  found: {}\n  expected {}",
+            b, a
+        ));
+    }
+
+    let mut i = 0;
+    c.rtype = (*ret).clone();
+    for arg in &mut c.args {
+        if let Err(e) = expr(info, s, arg, Some(args[i].clone())) {
+            return Err(suberror!(e,
+                "argument type error\n  invoked method: {}\n  positional argument: {}\n",
+                &c.name, (i + 1)
+            ));
+        }
+        let (found, expt) = (arg.get_type(), &args[i]);
+        if found != expt {
+            return Err(type_error(found, expt));
+        }
+        i += 1;
+    }
+    Ok(())
+}
+
 pub fn method(i: &mut Info, s: &mut Scope,
               m: &mut MethodAccess, expt: Option<DataType>) -> Result<(), Error>
 {
     expr(i, s, &mut *m.expr, expt.clone())?;
-    call(i, s, &mut m.call, expt)?;
+    let rec = m.expr.get_type().derived().get_record();
+    call(i, s, &mut m.call, expt, &rec.name)?;
     Ok(())
 }
 

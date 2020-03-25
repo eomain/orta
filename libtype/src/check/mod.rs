@@ -10,7 +10,13 @@ use std::rc::Rc;
 use super::Error;
 use libsym::Error as SError;
 use libsym::Scope;
-use libsym::TypeInfo;
+use libsym::Info as TypeInfo;
+use libsym::Definition;
+use libsym::{
+    Function as Fun,
+    Variable as Var,
+    VarKind
+};
 use libast::Typed;
 use libast::DataType;
 use libast::DataRecord;
@@ -78,15 +84,12 @@ fn literal(s: &mut Scope, l: &Literal) -> DataType
     }
 }
 
-fn named<'a>(s: &'a Scope, t: &'a DataType) -> &'a DataType
+fn named<'a>(s: &'a Scope, t: &'a DataType) -> Option<Rc<DataType>>
 {
     if let DataType::Named(name) = t {
-        match s.find_named_type(name) {
-            Err(_) => t,
-            Ok(d) => d
-        }
+        s.find_typename(name)
     } else {
-        t
+        None
     }
 }
 
@@ -149,24 +152,33 @@ fn type_error(f: &DataType, e: &DataType) -> Error
 fn variable(i: &mut Info, s: &mut Scope,
             v: &mut Variable, expt: Option<DataType>) -> Result<(), Error>
 {
-    match s.find_type(&v.name) {
-        Err(e) => return Err(e.into()),
-        Ok((dtype, fin)) => {
+    match s.find(&v.name) {
+        None => return Err(error!("undefined variable '{}'", &v.name)),
+        Some(info) => {
+            let dtype = info.dtype.clone();
+            let abs = info.absolute;
+
+            assert_ne!(*dtype, DataType::Unset);
+
             if let Some(expt) = expt {
-                if dtype != expt && dtype != DataType::Unset && fin {
+                if *dtype != expt && abs {
                     return Err(type_error(&dtype, &expt));
                 }
 
                 if !dtype.function() {
-                    if (dtype == expt || (!expt.unique() && convertable(&expt, &dtype))) {
+                    if (*dtype == expt || (!expt.unique() && convertable(&expt, &dtype))) {
                         v.dtype = expt.clone();
-                        s.insert_var(&v.name, expt.clone(), false);
+
+                        let d = Definition::Variable(Var::new(VarKind::Temp));
+                        let info = TypeInfo::new(d, Rc::new(expt.clone()), false);
+                        s.insert(v.name.clone(), info);
+
                         i.pass();
                         return Ok(());
                     }
                 }
             }
-            v.dtype = dtype.clone();
+            v.dtype = (*dtype).clone();
         }
     }
     Ok(())
@@ -203,17 +215,20 @@ fn call(info: &mut Info, s: &mut Scope,
         c: &mut CallExpr, expt: Option<DataType>) -> Result<(), Error>
 {
     // check if the call is on a variable (function pointer)
-    let var = s.find_var(&c.name).is_ok();
+    let var = match s.find_definition(&c.name) {
+        Some(Definition::Variable(_)) => true,
+        _ => false
+    };
 
     // get the argument types and the return type
-    let (args, ret) = match s.find_type(&c.name) {
-        Err(e) => return Err(e.into()),
-        Ok((sig, _)) => {
-            if let DataType::Function(v, r) = &sig.derived() {
+    let (args, ret) = match s.get_type(&c.name) {
+        None => return Err(error!("undefined function '{}'", &c.name)),
+        Some(dtype) => {
+            if let DataType::Function(v, r) = &dtype.derived() {
                 if var {
-                    c.var = Some(sig.clone());
+                    c.var = Some((*dtype).clone());
                 }
-                (v.clone(), (**r).clone())
+                (v.clone(), r.clone())
             } else {
                 return Err(error!("`{}` is not a function", &c.name));
             }
@@ -229,7 +244,7 @@ fn call(info: &mut Info, s: &mut Scope,
     }
 
     let mut i = 0;
-    c.rtype = ret;
+    c.rtype = (*ret).clone();
     for arg in &mut c.args {
         if let Err(e) = expr(info, s, arg, Some(args[i].clone())) {
             return Err(suberror!(e,
@@ -418,21 +433,33 @@ fn loop_while(i: &mut Info, s: &mut Scope, wl: &mut WhileExpr,
 
 fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
 {
-    if s.contains(&a.id) {
+    let abs = if s.contains(&a.id) {
         if a.declare && i.get_count() == 1 {
             return Err(error!("redeclaration of variable `{}`", &a.id));
         }
-        match s.find_var_type(&a.id) {
-            Err(e) => return Err(e.into()),
-            Ok(t) => a.dtype = t.clone()
+        match s.find(&a.id) {
+            None => unreachable!(),
+            Some(info) => {
+                match info.definition {
+                    Definition::Variable(_) => (),
+                    _ => return Err(error!(""))
+                }
+                a.dtype = (*info.dtype).clone();
+                info.abs()
+            }
         }
-    }
+    } else {
+        false
+    };
 
-    let expt = if s.is_final(&a.id) {
-        Some(s.get_type(&a.id).unwrap())
+    let expt = if abs {
+        Some((*s.get_type(&a.id).unwrap()).clone())
     } else {
         if a.dtype != DataType::Unset {
-            Some(named(s, &a.dtype).clone())
+            Some(match named(s, &a.dtype) {
+                None => a.dtype.clone(),
+                Some(s) => (*s).clone()
+            })
         } else {
             None
         }
@@ -450,7 +477,9 @@ fn assign(i: &mut Info, s: &mut Scope, a: &mut Assign) -> Result<(), Error>
     }
 
     a.dtype = a.expr.get_type().clone();
-    s.insert_var(&a.id, a.dtype.clone(), f);
+    let d = Definition::Variable(Var::new(VarKind::Temp));
+    let info = TypeInfo::new(d, Rc::new(a.dtype.clone()), f);
+    s.insert(a.id.clone(), info);
     Ok(())
 }
 
@@ -553,7 +582,9 @@ fn fun(i: &mut Info, s: &mut Scope, f: &mut Function) -> Result<(), Error>
 pub fn fpass(s: &mut Scope, f: &mut Function) -> Result<(), Error>
 {
     for (name, dtype) in &Vec::from(&f.param) {
-        s.insert_var(name, dtype.clone(), true);
+        let d = Definition::Variable(Var::new(VarKind::Temp));
+        let info = TypeInfo::new(d, Rc::new(dtype.clone()), true);
+        s.insert(name.into(), info);
     }
 
     let mut info = Info::new(&f.name, f.ret.clone());

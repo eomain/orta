@@ -29,11 +29,14 @@ pub fn cast(i: &mut Info, s: &mut Scope,
             c: &mut Cast, expt: Option<DataType>) -> Result<(), Error>
 {
     expr(i, s, &mut *c.expr, None)?;
-    let (a, b) = (named(s, &c.dtype), c.expr.get_type());
-    if !castable(a, b) {
+    let (a, b) = (match named(s, &c.dtype) {
+        None => Rc::new(c.dtype.clone()),
+        Some(s) => s
+    }, c.expr.get_type());
+    if !castable(&a, b) {
         Err(error!("cannot cast type from `{}` into `{}`", b, a))
     } else {
-        c.dtype = a.clone();
+        c.dtype = (*a).clone();
         Ok(())
     }
 }

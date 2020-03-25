@@ -6,11 +6,17 @@ extern crate libast;
 mod error;
 mod check;
 
+use std::rc::Rc;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use libsym::Scope;
 use libsym::Table;
-use libsym::TypeInfo;
+use libsym::Definition;
+use libsym::Info;
+use libsym::Function as Fun;
+use libsym::Structure as Struct;
 use libast::Variable;
+use libast::Define;
 use libast::DataType;
 use libast::DataRecord;
 use libast::Function;
@@ -38,135 +44,204 @@ impl TypeMeta {
     }
 }
 
+// Environment for a single module
 #[derive(Debug)]
 struct Env<'a> {
-    pub table: Table<'a>
+    // The symbol table
+    pub table: Table<'a>,
+    // Contains an entry point
+    // within the module
+    pub entry: bool
 }
 
 impl<'a> Env<'a> {
-    pub fn new(meta: &TypeMeta) -> Self
+    fn new(meta: &TypeMeta) -> Self
     {
        Self {
-           table: Table::new(meta.runtime)
+           table: Table::new(meta.runtime),
+           entry: meta.main
 	   }
     }
-}
 
-fn insert_functions(global: &mut Table, functions: &Vec<Function>)
-{
-    for f in functions {
-        let args = Vec::from(&f.param).iter()
-                                      .map(|a| a.1.clone())
-                                      .collect();
-        let ret = f.ret.clone();
-        global.insert(&f.name, (TypeInfo::Function((args, ret)), true));
+    fn init(&mut self, ast: &mut SyntaxTree) -> Result<(), Error>
+    {
+        self.insert_types(&ast.types)?;
+        self.insert_record(&ast.records, &ast.defines)?;
+        self.update_declarations(&mut ast.declarations);
+        self.insert_declarations(&ast.declarations)?;
+        self.update_functions(&mut ast.functions);
+        self.insert_functions(&ast.functions)?;
+        self.require_main()?;
+        Ok(())
     }
-}
 
-fn update_functions(table: &mut Table, functions: &mut Vec<Function>) -> Result<(), Error>
-{
-    for f in functions {
-        for (_, v) in &mut f.param.map {
-            if let DataType::Named(s) = &mut v.0 {
-                match table.global.find_named_type(s) {
-                    Err(e) => return Err(e.into()),
-                    Ok(t) => v.0 = t.clone()
-                }
+    fn update_named(&mut self, dtype: &mut DataType)
+    {
+        if let DataType::Named(name) = dtype {
+            match self.table.global.get_type(name) {
+                None => (),
+                Some(t) => { *dtype = (*t).clone(); }
             }
         }
     }
-    Ok(())
-}
 
-fn insert_declarations(global: &mut Table, declarations: &Vec<FunctionDec>)
-{
-    for d in declarations {
-        let args = d.param.clone();
-        let ret = d.ret.clone();
-        global.insert(&d.name, (TypeInfo::Function((args, ret)), true));
-    }
-}
-
-fn update_declarations(table: &mut Table,
-                       declarations: &mut Vec<FunctionDec>) -> Result<(), Error>
-{
-    for d in declarations {
-        for p in &mut d.param {
-            if let DataType::Named(s) = p {
-                match table.global.find_named_type(s) {
-                    Err(e) => return Err(e.into()),
-                    Ok(t) => *p = t.clone()
-                }
+    fn update_functions(&mut self, functions: &mut Vec<Function>)
+    {
+        for f in functions {
+            for (_, v) in &mut f.param.map {
+                self.update_named(&mut v.0);
             }
-        }
-
-        if let DataType::Named(s) = &mut d.ret {
-            match table.global.find_named_type(s) {
-                Err(e) => return Err(e.into()),
-                Ok(t) => d.ret = t.clone()
-            }
+            self.update_named(&mut f.ret);
         }
     }
-    Ok(())
-}
 
-fn insert_record(global: &mut Table, types: &HashMap<String, DataRecord>)
-{
-    for (k, t) in types {
-        global.insert(k, (TypeInfo::Record(t.clone()), true));
+    fn update_declarations(&mut self, declarations: &mut Vec<FunctionDec>)
+    {
+        for d in declarations {
+            for dtype in &mut d.param {
+                self.update_named(dtype);
+            }
+            self.update_named(&mut d.ret);
+        }
     }
-}
 
-/*fn update_types(table: &mut Table,
-                types: &mut HashMap<String, DataType>) -> Result<(), Error>
-{
-    for (_, d) in types {
-        if let DataType::Unique(u) = d {
-            match types.get(&u.name) {
-                None => return Err(error!("undefined type {}", u.dtype)),
-                Some(t) => *u.dtype = (*t).clone()
+    fn insert_functions(&mut self, functions: &Vec<Function>) -> Result<(), Error>
+    {
+        for f in functions {
+            if self.table.contains(&f.name) {
+                return Err(error!("redefinition of function '{}'", &f.name));
+            }
+
+            let args = Vec::from(&f.param).iter()
+                                          .map(|a| a.1.clone())
+                                          .collect();
+            let ret = f.ret.clone();
+            let dtype = DataType::from((args, ret));
+            let d = Definition::Function(Fun::new(false, f.prop.external));
+            let info = Info::new(d, Rc::new(dtype), true);
+
+            self.table.insert(&f.name, info);
+        }
+        Ok(())
+    }
+
+    fn insert_declarations(&mut self, declarations: &Vec<FunctionDec>) -> Result<(), Error>
+    {
+        for dec in declarations {
+            if self.table.contains(&dec.name) {
+                return Err(error!("redefinition of function declaration '{}'", &dec.name));
+            }
+
+            let args = dec.param.clone();
+            let ret = dec.ret.clone();
+
+            let dtype = DataType::from((args, ret));
+            let d = Definition::Function(Fun::new(false, true));
+            let info = Info::new(d, Rc::new(dtype), true);
+
+            self.table.insert(&dec.name, info);
+        }
+        Ok(())
+    }
+
+    fn insert_record(&mut self, types: &Vec<(String, DataRecord)>,
+                     define: &Vec<(String, Define)>) -> Result<(), Error>
+    {
+        for (k, t) in types {
+            if self.table.contains(k) {
+                return Err(error!("redefinition of type struct '{}'", k));
+            }
+
+            let define: HashMap<_, _> = define.iter()
+                                              .map(|a| (a.0.clone(), a.1.clone()))
+                                              .collect();
+            let map = match define.get(k) {
+                Some(d) => {
+                    let mut map = HashMap::new();
+                    for m in &d.methods {
+                        let args = Vec::from(&m.param).iter()
+                                                      .map(|a| a.1.clone())
+                                                      .collect();
+                        let ret = m.ret.clone();
+
+                        let dtype = DataType::from((args, ret));
+                        let d = Definition::Function(Fun::new(false, false));
+                        let info = Info::new(d, Rc::new(dtype), true);
+
+                        map.insert(m.name.clone(), info);
+                    }
+                    map
+                },
+                _ => HashMap::new()
+            };
+
+            let s = Struct::from(map);
+            let d = Definition::Structure(s);
+            let info = Info::new(d, Rc::new(DataType::from(t.clone())), true);
+
+            self.table.insert(k, info);
+        }
+        Ok(())
+    }
+
+    fn insert_types(&mut self, types: &Vec<(String, DataType)>) -> Result<(), Error>
+    {
+        for (k, t) in types {
+            if self.table.contains(k) {
+                return Err(error!("redefinition of type '{}'", k));
+            }
+
+            let d = Definition::TypeName;
+            let info = Info::new(d, Rc::new(t.clone()), true);
+
+            self.table.insert(k, info);
+        }
+        Ok(())
+    }
+
+    fn require_main(&self) -> Result<(), Error>
+    {
+        if !self.entry {
+            return Ok(());
+        }
+
+        match self.table.global.find_fun_type("main") {
+            None => Err(error!("function 'main' undefined")),
+            Some(dtype) => match &*dtype {
+                DataType::Function(param, ret) => {
+                    if param.len() > 0 {
+                        Err(error!("'main' function must not have parameters"))
+                    } else if **ret != DataType::Unit {
+                        Err(error!("'main' function must return unit `()`"))
+                    } else {
+                        Ok(())
+                    }
+                },
+                _ => unreachable!()
             }
         }
     }
-    Ok(())
-}*/
-
-fn insert_types(global: &mut Table, types: &HashMap<String, DataType>)
-{
-    for (k, t) in types {
-        global.insert(k, (TypeInfo::Named(t.clone()), true));
-    }
-}
-
-fn require_main(meta: &TypeMeta, global: &Table) -> Result<(), Error>
-{
-    if meta.main && !global.has_main() {
-        return Err(error!("function 'main' undefined"));
-    }
-    Ok(())
 }
 
 pub fn init(meta: TypeMeta, ast: &mut SyntaxTree) -> Result<(), Error>
 {
     let mut env = Env::new(&meta);
+    env.init(ast)?;
+
     let global = &mut env.table;
 
-    insert_record(global, &ast.records);
-    //update_types(global, &mut ast.types)?;
-    insert_types(global, &ast.types);
-
-    update_declarations(global, &mut ast.declarations)?;
-    insert_declarations(global, &ast.declarations);
-
-    update_functions(global, &mut ast.functions)?;
-    insert_functions(global, &ast.functions);
-
+    let records: HashMap<_, _> = ast.records.iter()
+                                            .map(|a| (a.0.clone(), a.1.clone()))
+                                            .collect();
     for (n, d) in &mut ast.defines {
-        // TODO:
-        let rec = ast.records.get(n).unwrap();
-        for m in &mut d.methods {
-            let mut s = global.scope();
-            check::mpass(&mut s, m, rec.clone())?;
+        match records.get(n) {
+            Some(rec) => {
+                for m in &mut d.methods {
+                    let mut s = global.scope();
+                    check::mpass(&mut s, m, rec.clone())?;
+                }
+            },
+            _ => return Err(error!("found define block for undefined type struct '{}'", n))
         }
     }
 
@@ -174,8 +249,6 @@ pub fn init(meta: TypeMeta, ast: &mut SyntaxTree) -> Result<(), Error>
         let mut s = global.scope();
         check::fpass(&mut s, f)?;
     }
-
-    require_main(&meta, global)?;
 
     Ok(())
 }

@@ -30,6 +30,13 @@ impl From<&Error> for String {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Call {
+    Undefined(String),
+    ArgLength(usize, usize),
+    ArgType
+}
+
 impl From<SError> for Error {
     fn from(s: SError) -> Self
     {

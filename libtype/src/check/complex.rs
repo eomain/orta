@@ -98,11 +98,37 @@ fn array(i: &mut Info, s: &mut Scope, a: &mut ArrayLit,
 fn structs(i: &mut Info, s: &mut Scope, c: &mut Struct,
            expt: Option<DataType>) -> Result<(), Error>
 {
-    let comp = match s.find_record_type(&c.name) {
-        Err(_) => return Err(error!("undefined type struct `{}`", &c.name)),
-        Ok(s) => s
+    let comp = match s.find(&c.name) {
+        None => return Err(error!("undefined type struct `{}`", &c.name)),
+        Some(info) => {
+            match &*info.dtype {
+                DataType::Record(r) => r.clone(),
+                _ => return Err(error!(""))
+            }
+        }
     };
-    unimplemented!();
+    let mut fields = HashMap::new();
+    for (n ,t) in &comp.attr {
+        fields.insert(n, t);
+    }
+    let (a, b) = (c.fields.len(), fields.len());
+    if a != b {
+        return Err(error!(
+            "type struct '{}' defined with {} fields, {} were specified",
+            &c.name, b, a
+        ));
+    }
+
+    for (n, e) in &mut c.fields {
+        let dtype = match fields.get(n) {
+            None => return Err(error!("field '{}' not defined in type struct '{}'", n, &c.name)),
+            Some(t) => (*t).clone()
+        };
+        expr(i, s, e, Some(dtype))?;
+    }
+
+    c.dtype = DataType::from((*comp).clone());
+
     Ok(())
 }
 
