@@ -40,49 +40,112 @@ impl From<&Error> for String {
     }
 }
 
+// The defined kind of a variable
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum IdDef {
-    None,
-    Const,
-    Var
+pub enum VarKind {
+    // A static variable
+    Static,
+    // A temporary variable i.e.
+    // allocated on the stack
+    Temp
 }
 
-// Contains all the info about symbols
-pub struct Info {
-    // The type of the symbol
-    pub dtype: Rc<DataType>,
-    // If the symbol type is final
-    pub ftype: bool,
-    // If the symbol is a global
-    pub global: bool,
-    // Identifier definition
-    pub def: IdDef,
-    // Is a named type
-    pub named: bool
-}
-
-// The type information
+// A compile time constant
 #[derive(Debug, Clone, PartialEq)]
-pub enum TypeInfo {
-    Var(DataType),
-    Function(Signature),
-    Named(DataType),
-    Record(DataRecord)
+pub struct Constant {
+
 }
 
-impl TypeInfo {
-    fn is_function(&self) -> bool
+#[derive(Debug, Clone, PartialEq)]
+pub struct Variable {
+    pub kind: VarKind,
+    //pub assigned: bool
+}
+
+impl Variable {
+    pub fn new(kind: VarKind) -> Self
     {
-        if let TypeInfo::Function(_) = self {
-            true
-        } else {
-            false
+        Self {
+            kind
         }
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Function {
+    pub r#unsafe: bool,
+    pub external: bool
+}
+
+impl Function {
+    pub fn new(r#unsafe: bool, external: bool) -> Self
+    {
+        Self {
+            r#unsafe,
+            external
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Structure {
+    pub methods: Map<String, Info>
+}
+
+impl Structure {
+    pub fn from(methods: Map<String, Info>) -> Self
+    {
+        Self {
+            methods
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Definition {
+    Constant(Constant),
+    Variable(Variable),
+    Function(Function),
+    Structure(Structure),
+    TypeName
+}
+
+// Contains all the info about symbols
+#[derive(Debug, Clone, PartialEq)]
+pub struct Info {
+    // The type of the symbol
+    pub dtype: Rc<DataType>,
+    // The type definition
+    pub definition: Definition,
+    // If the symbol type is final
+    pub absolute: bool,
+    // If the symbol is a global
+    //pub global: bool,
+    // Is a named type
+    //pub named: bool,
+    // Is a foregin symbol
+    //pub foreign: bool
+}
+
+impl Info {
+    pub fn new(definition: Definition, dtype: Rc<DataType>,
+               absolute: bool) -> Self
+    {
+        Self {
+            dtype,
+            definition,
+            absolute
+        }
+    }
+
+    pub fn abs(&self) -> bool
+    {
+        self.absolute
+    }
+}
+
 // A map of names to type info
-pub type Entry = HashMap<Id, (TypeInfo, bool)>;
+pub type Entry = Map<Id, Info>;
 
 // Represents a single scope within a program
 #[derive(Debug, Clone, PartialEq)]
@@ -91,6 +154,8 @@ pub struct Scope<'a> {
     // This should only be `None` for
     // the global scope.
     parent: Option<&'a Scope<'a>>,
+    // The set of symbol entries within
+    // the current scope
     entry: Entry
 }
 
@@ -103,17 +168,20 @@ impl<'a> Scope<'a> {
         }
     }
 
-    pub fn insert(&mut self, id: &str, t: (TypeInfo, bool))
+    pub fn root(&self) -> bool
     {
-        self.entry.insert(id.into(), t);
+        match self.parent {
+            None => true,
+            _ => false
+        }
     }
 
-    pub fn insert_var(&mut self, id: &str, v: DataType, f: bool)
+    pub fn insert(&mut self, id: Id, info: Info)
     {
-        self.entry.insert(id.into(), (TypeInfo::Var(v), f));
+        self.entry.insert(id, info);
     }
 
-    pub fn find(&self, id: &str) -> Option<&(TypeInfo, bool)>
+    pub fn find(&self, id: &str) -> Option<&Info>
     {
         match self.entry.get(id) {
             None => {
@@ -127,113 +195,74 @@ impl<'a> Scope<'a> {
         }
     }
 
-    pub fn is_final(&self, id: &str) -> bool
+    pub fn find_definition(&self, id: &str) -> Option<&Definition>
     {
-        match self.find(id) {
-            None => false,
-            Some(t) => t.1
-        }
-    }
-
-    pub fn get_type(&self, id: &str) -> Result<DataType, Error>
-    {
-        match self.find(id) {
-            None => Err(Error::Undefined(id.into())),
-            Some(t) => {
-                match &t.0 {
-                    TypeInfo::Var(dt) | TypeInfo::Named(dt) => Ok(dt.clone()),
-                    TypeInfo::Function((v, r)) => {
-                        Ok(DataType::Function(v.clone(), Box::new(r.clone())))
-                    },
-                    TypeInfo::Record(r) => Ok(DataType::from(r.clone()))
-                }
-            }
-        }
-    }
-
-    pub fn find_type(&self, id: &str) -> Result<(DataType, bool), Error>
-    {
-        match self.find(id) {
-            None => Err(Error::Undefined(id.into())),
-            Some(t) => {
-                match &t.0 {
-                    TypeInfo::Var(dt) | TypeInfo::Named(dt) => Ok((dt.clone(), t.1)),
-                    TypeInfo::Function((v, r)) => {
-                        Ok((DataType::Function(v.clone(), Box::new(r.clone())), t.1))
-                    },
-                    TypeInfo::Record(r) => Ok((DataType::from(r.clone()), t.1))
-                }
-            }
-        }
-    }
-
-    pub fn find_var(&self, id: &str) -> Result<(DataType, bool), Error>
-    {
-        match self.find(id) {
-            None => Err(Error::Undefined(id.into())),
-            Some(t) => {
-                if let TypeInfo::Var(dt) = &t.0 {
-                    Ok((dt.clone(), t.1))
+        match self.entry.get(id) {
+            None => {
+                if let Some(p) = self.parent {
+                    p.find_definition(id)
                 } else {
-                    Err(Error::NotVariable(id.into()))
+                    None
+                }
+            },
+            Some(t) => Some(&t.definition)
+        }
+    }
+
+    pub fn find_struct_method(&self, name: &str, method: &str) -> Option<&Info>
+    {
+        match self.find_definition(name) {
+            Some(Definition::Structure(s)) => {
+                s.methods.get(method)
+            },
+            _ => None
+        }
+    }
+
+    pub fn find_var_type(&self, id: &str) -> Option<Rc<DataType>>
+    {
+        match self.find(id) {
+            None => None,
+            Some(info) => {
+                match info.definition {
+                    Definition::Variable(_) => Some(info.dtype.clone()),
+                    _ => None
                 }
             }
         }
     }
 
-    pub fn find_named_type(&self, id: &str) -> Result<&DataType, Error>
+    pub fn find_fun_type(&self, id: &str) -> Option<Rc<DataType>>
     {
         match self.find(id) {
-            None => Err(Error::Undefined(id.into())),
-            Some((t, _)) => {
-                if let TypeInfo::Named(t) = t {
-                    Ok(&t)
-                } else {
-                    Err(Error::NotNamed(id.into()))
+            None => None,
+            Some(info) => {
+                match info.definition {
+                    Definition::Function(_) => Some(info.dtype.clone()),
+                    _ => None
                 }
             }
         }
     }
 
-    pub fn find_record_type(&self, id: &str) -> Result<&DataRecord, Error>
+    pub fn find_typename(&self, id: &str) -> Option<Rc<DataType>>
     {
         match self.find(id) {
-            None => Err(Error::Undefined(id.into())),
-            Some((t, _)) => {
-                if let TypeInfo::Record(r) = t {
-                    Ok(&r)
-                } else {
-                    Err(Error::NotNamed(id.into()))
+            None => None,
+            Some(info) => {
+                match info.definition {
+                    Definition::TypeName => Some(info.dtype.clone()),
+                    _ => None
                 }
             }
         }
     }
 
-    pub fn find_var_type(&self, id: &str) -> Result<&DataType, Error>
+    pub fn get_type(&self, id: &str) -> Option<Rc<DataType>>
     {
         match self.find(id) {
-            None => Err(Error::Undefined(id.into())),
-            Some((t, _)) => {
-                if let TypeInfo::Var(t) = t {
-                    Ok(&t)
-                } else {
-                    Err(Error::NotVariable(id.into()))
-                }
-            }
-        }
-    }
-
-    pub fn find_fun_type(&self, id: &str) -> Result<&Signature, Error>
-    {
-        match self.find(id) {
-            None => Err(Error::Undefined(id.into())),
-            Some((t, _)) => {
-                if let TypeInfo::Function(t) = t {
-                    Ok(&t)
-                } else {
-                    Err(Error::NotFunction(id.into()))
-                }
-            }
+            None => None,
+            Some(e) => Some(e.dtype.clone())
         }
     }
 
@@ -268,22 +297,19 @@ impl<'a> Table<'a> {
         }
     }
 
-    pub fn insert(&mut self, id: &str, t: (TypeInfo, bool))
+    pub fn insert(&mut self, id: &str, info: Info)
     {
-        self.global.insert(id, t);
+        self.global.insert(id.into(), info);
+    }
+
+    pub fn contains(&self, id: &str) -> bool
+    {
+        self.global.contains(id)
     }
 
     pub fn scope(&self) -> Scope
     {
         Scope::new(Some(&self.global))
-    }
-
-    pub fn has_main(&self) -> bool
-    {
-        if let Ok(_) = self.global.find_fun_type("main") {
-            return true;
-        }
-        false
     }
 }
 
