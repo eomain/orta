@@ -22,7 +22,7 @@ pub fn at(c: &mut Context, a: &AtExpr,
 fn field_index(c: &mut Context, f: &FieldAccess, r: &Register,
                t: &Type, val: Value, v: &mut Vec<Inst>)
 {
-    let rec = f.expr.get_type().get_record();
+    let rec = f.expr.get_type().get_record().unwrap();
     let index = rec.attr.iter()
                         .position(|a| &a.0 == &f.field).unwrap() as isize;
 
@@ -70,7 +70,7 @@ pub fn call(c: &mut Context, m: &MethodAccess,
         }
     };
 
-    let rec = m.expr.get_type().derived().get_record();
+    let rec = m.expr.get_type().derived().get_record().unwrap();
     let mo = &rec.name;
     // The id of the function
     let id = name(mo, &e.name);
