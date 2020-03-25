@@ -718,18 +718,9 @@ fn call_id(c: &mut Context, e: &ast::CallExpr, v: &mut Vec<Inst>) -> Value
     }
 }
 
-fn call(c: &mut Context, e: &ast::CallExpr,
-        v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+fn call_op(c: &mut Context, id: Value, args: Option<Vec<(Type, Value)>>,
+           rtype: Type, v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
-    // Return type of function call
-    let rtype = type_cast(&e.rtype);
-
-    // Arguments to function (Type, Value)
-    let args = call_args(c, &e.args, v);
-
-    // The id of the function
-    let id = call_id(c, e, v);
-
     // Register for the return value
     let reg: Option<Register> = if rtype == Type::Void {
         None
@@ -747,6 +738,21 @@ fn call(c: &mut Context, e: &ast::CallExpr,
     } else {
         None
     }
+}
+
+fn call(c: &mut Context, e: &ast::CallExpr,
+        v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+{
+    // Return type of function call
+    let rtype = type_cast(&e.rtype);
+
+    // Arguments to function (Type, Value)
+    let args = call_args(c, &e.args, v);
+
+    // The id of the function
+    let id = call_id(c, e, v);
+
+    call_op(c, id, args, rtype, v)
 }
 
 fn expr(c: &mut Context, e: &ast::Expr,
@@ -768,6 +774,7 @@ fn expr(c: &mut Context, e: &ast::Expr,
         Cast(e) => cast::cast(c, e, v),
         At(a) => method::at(c, a, v),
         Field(f) => method::field(c, f, v),
+        Method(m) => method::call(c, m, v),
         Index(i) => Some(vec![complex::index(c, i, v)]),
         Address(a) => Some(vec![ptr::address(c, a, v)]),
         Deref(d) => Some(vec![ptr::deref(c, d, v)]),
@@ -998,34 +1005,15 @@ fn property(p: &ast::FunctionProp) -> Properties
     Properties::new(linkage)
 }
 
-// Convert an AST function into an LLVM function
-fn function(c: &mut Context, func: &ast::Function) -> Function
+fn function_body(c: &mut Context, ret: Type,
+                 exprs: &ast::ExprList) -> Vec<Inst>
 {
-    let name = &func.name;
-    let ret = type_cast(&func.ret);
-    let paramlist: Vec<_> = (&func.param).into();
-    let param: Option<Vec<(Type, Register)>> = if paramlist.len() == 0 {
-        None
-    } else {
-        Some(paramlist.iter()
-                      .map(|a| (type_cast(&a.1), Register::from(&Local::new(&a.0))))
-                      .collect())
-    };
-
-    if let Some(param) = &param {
-        for (t, r) in param {
-            c.id.insert(r.as_ref(), VarType::Val);
-        }
-    }
-
-    let prop = property(&func.prop);
-    let mut f = Function::new(name, param, ret.clone(), Some(prop));
     let mut v = Vec::new();
 
     let (_, eop) = c.id.label();
     c.info.count = 1;
-    c.info.total = func.expr.len();
-    for e in &func.expr {
+    c.info.total = exprs.len();
+    for e in exprs {
         expr(c, e, &mut v);
         c.info.count += 1;
     }
@@ -1049,6 +1037,33 @@ fn function(c: &mut Context, func: &ast::Function) -> Function
     if v.len() > 1 {
         entry(&mut v, eop);
     }
+
+    v
+}
+
+// Convert an AST function into an LLVM function
+fn function(c: &mut Context, func: &ast::Function) -> Function
+{
+    let name = &func.name;
+    let ret = type_cast(&func.ret);
+    let paramlist: Vec<_> = (&func.param).into();
+    let param: Option<Vec<(Type, Register)>> = if paramlist.len() == 0 {
+        None
+    } else {
+        Some(paramlist.iter()
+                      .map(|a| (type_cast(&a.1), Register::from(&Local::new(&a.0))))
+                      .collect())
+    };
+
+    if let Some(param) = &param {
+        for (t, r) in param {
+            c.id.insert(r.as_ref(), VarType::Val);
+        }
+    }
+
+    let prop = property(&func.prop);
+    let mut f = Function::new(name, param, ret.clone(), Some(prop));
+    let mut v = function_body(c, ret, &func.expr);
 
     while v.len() > 0 {
         f.append(v.remove(0));

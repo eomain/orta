@@ -84,14 +84,6 @@ pub fn index(c: &mut Context, i: &Index,
     (dtype, Value::Reg(r))
 }
 
-fn set(c: &mut Context, e: &Expr, r: &Register,
-       v: &mut Vec<Inst>)
-{
-    let (t, val) = unary_expr(c, e, v);
-    let op = Store(val, t.clone(), Rc::new(r.clone()));
-    v.push(Inst::new(op, t));
-}
-
 #[inline]
 fn get_array(e: &Expr) -> &Array
 {

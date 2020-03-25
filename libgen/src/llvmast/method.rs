@@ -1,25 +1,31 @@
 
 use super::*;
+use ast::AtExpr;
+use ast::FieldAccess;
+use ast::MethodAccess;
 
-pub fn at(c: &mut Context, a: &ast::AtExpr,
+static METHOD_OBJECT: &str = "m.o";
+
+fn name(mo: &str, name: &str) -> String
+{
+    format!("st.{}.{}", mo, name)
+}
+
+pub fn at(c: &mut Context, a: &AtExpr,
           v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
 {
-    let r = Register::new("mo");
+    let r = Register::new(METHOD_OBJECT);
     let dtype = type_cast(&a.dtype);
     Some(vec![(dtype, Value::Reg(r))])
 }
 
-pub fn field(c: &mut Context, f: &ast::FieldAccess,
-             v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+fn field_index(c: &mut Context, f: &FieldAccess, r: &Register,
+               t: &Type, val: Value, v: &mut Vec<Inst>)
 {
-    let (t, val) =  unary_expr(c, &f.expr, v);
-    let r = c.id.register();
-    let index = match &f.expr.get_type() {
-        ast::DataType::Record(r) => {
-            r.attr.iter().position(|a| &a.0 == &f.field).unwrap() as isize
-        },
-        _ => unreachable!()
-    };
+    let rec = f.expr.get_type().get_record();
+    let index = rec.attr.iter()
+                        .position(|a| &a.0 == &f.field).unwrap() as isize;
+
     let op = Operation::GetElPtr(
         r.clone(), (Type::Pointer(Box::new(t.clone())), val),
         vec![
@@ -28,25 +34,63 @@ pub fn field(c: &mut Context, f: &ast::FieldAccess,
         ]
     );
     v.push(Inst::new(op, t.clone()));
+}
+
+pub fn field(c: &mut Context, f: &FieldAccess,
+             v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+{
+    let (t, val) =  unary_expr(c, &f.expr, v);
+    let r = c.id.register();
+    field_index(c, f, &r, &t, val, v);
+
     let reg = c.id.register();
     let dtype = type_cast(&f.dtype);
     let op = Operation::Load(reg.clone(), dtype.clone(), Rc::new(r));
     v.push(Inst::new(op, dtype.clone()));
+
     Some(vec![(dtype, Value::Reg(reg))])
+}
+
+pub fn call(c: &mut Context, m: &MethodAccess,
+            v: &mut Vec<Inst>) -> Option<Vec<(Type, Value)>>
+{
+    let (t, val) =  unary_expr(c, &m.expr, v);
+    let obj = (Type::Pointer(Box::new(t)), val);
+    let e = &m.call;
+
+    // Return type of function call
+    let rtype = type_cast(&e.rtype);
+
+    // Arguments to function (Type, Value)
+    let args = match call_args(c, &e.args, v) {
+        None => Some(vec![obj]),
+        Some(mut v) => {
+            v.insert(0, obj);
+            Some(v)
+        }
+    };
+
+    let rec = m.expr.get_type().derived().get_record();
+    let mo = &rec.name;
+    // The id of the function
+    let id = name(mo, &e.name);
+    let id = Value::Global(Rc::new(GlobalId::new(&id)));
+
+    call_op(c, id, args, rtype, v)
 }
 
 // Convert an AST method into an LLVM function
 fn method(c: &mut Context, m: &ast::Method,
           at: Type, tname: &str) -> Function
 {
-    let name = format!("st.{}.{}", tname, &m.name);
+    let name = name(tname, &m.name);
     let ret = type_cast(&m.ret);
     let mut paramlist: Vec<_> = (&m.param).into();
     let param: Option<Vec<(Type, Register)>> = {
         let mut p: Vec<_> = paramlist.iter()
                              .map(|a| (type_cast(&a.1), Register::from(&Local::new(&a.0))))
                              .collect();
-        p.insert(0, (Type::Pointer(Box::new(at)), Register::new("mo")));
+        p.insert(0, (Type::Pointer(Box::new(at)), Register::new(METHOD_OBJECT)));
         Some(p)
     };
 
@@ -57,35 +101,7 @@ fn method(c: &mut Context, m: &ast::Method,
     }
 
     let mut f = Function::new(&name, param, ret.clone(), None);
-    let mut v = Vec::new();
-
-    let (_, eop) = c.id.label();
-    c.info.count = 1;
-    c.info.total = m.expr.len();
-    for e in &m.expr {
-        expr(c, e, &mut v);
-        c.info.count += 1;
-    }
-
-    if let Some(r) = &c.info.retval {
-        let rc = Rc::new(r.clone());
-        let op = Operation::Alloca(rc.clone(), None);
-        v.insert(0, Inst::new(op, ret.clone()));
-
-        v.push(Inst::new(label(REND), Type::Label));
-        let id = c.id.register();
-        let op = Operation::Load(id.clone(), ret.clone(), rc);
-        v.push(Inst::new(op, ret.clone()));
-        let op = Operation::Ret(Some(Value::Reg(id)));
-        v.push(Inst::new(op, ret));
-    } else if ret == Type::Void {
-        let i = Inst::new(Operation::Ret(None), ret);
-        v.push(i);
-    }
-
-    if v.len() > 1 {
-        entry(&mut v, eop);
-    }
+    let mut v = function_body(c, ret, &m.expr);
 
     while v.len() > 0 {
         f.append(v.remove(0));
