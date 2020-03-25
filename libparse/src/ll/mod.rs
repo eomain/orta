@@ -717,7 +717,7 @@ pub fn main(info: &mut ParseInfo) -> PResult<SyntaxTree>
                 match k {
                     Key::Define => {
                         let (d, n) = meta::define(info)?;
-                        tree.defines.insert(n, d);
+                        tree.append_define(n, d);
                     },
                     Key::Extern |
                     Key::Unsafe |
