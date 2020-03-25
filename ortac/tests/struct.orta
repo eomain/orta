@@ -1,0 +1,27 @@
+
+// a struct to a 2D coordinate
+type Point {
+    x: int,
+    y: int
+}
+
+// define methods for the Point struct
+define Point {
+    // get the x coordinate
+    get_x(@): int = return @.x;
+    // get the y coordinate
+    get_y(@): int = return @.y;
+}
+
+fun main()
+{
+    // create a new point
+    let p = Point {
+        x: 4, y: 8
+    };
+
+    // display the x coordinate
+    iprint(p.get_x());
+    // display the y coordinate
+    iprint(p.get_y());
+}
