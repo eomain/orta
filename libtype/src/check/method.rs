@@ -63,7 +63,10 @@ pub fn method(i: &mut Info, s: &mut Scope,
               m: &mut MethodAccess, expt: Option<DataType>) -> Result<(), Error>
 {
     expr(i, s, &mut *m.expr, expt.clone())?;
-    let rec = m.expr.get_type().derived().get_record();
+    let rec = match m.expr.get_type().derived().get_record() {
+        None => return Err(error!("cannot invoke method on non-struct type")),
+        Some(r) => r
+    };
     call(i, s, &mut m.call, expt, &rec.name)?;
     Ok(())
 }
