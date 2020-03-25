@@ -10,7 +10,11 @@ use libast::MethodAccess;
 pub fn at(i: &mut Info, s: &mut Scope,
           a: &mut AtExpr, expt: Option<DataType>) -> Result<(), Error>
 {
-    a.dtype = DataType::Record(i.at.clone().unwrap());
+    let dtype = match &i.at {
+        None => return Err(error!("use of '@' outside of method")),
+        Some(dtype) => dtype.clone()
+    };
+    a.dtype = DataType::Record(dtype);
     Ok(())
 }
 
