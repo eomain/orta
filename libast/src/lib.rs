@@ -4,6 +4,7 @@ extern crate libtoken;
 use std::fmt;
 use std::rc::Rc;
 use std::collections::HashMap;
+use std::collections::HashSet;
 pub use libtoken::Literal;
 pub use libtoken::TokenStream;
 
@@ -182,6 +183,9 @@ impl fmt::Display for DataType {
             DataType::Slice(s) => {
                 return write!(f, "{}", *s);
             },
+            DataType::Record(r) => {
+                &r.name
+            },
             DataType::Function(a, r) => {
                 if a.len() == 0 {
                     write!(f, "{} -> ", DataType::Unit)?;
@@ -263,6 +267,38 @@ impl DataType {
             _ => false
         }
     }
+
+    pub fn get_record(&self) -> &DataRecord
+    {
+        match self {
+            DataType::Record(r) => r,
+            _ => unreachable!()
+        }
+    }
+
+    pub fn get_named(&self, names: &mut HashSet<String>)
+    {
+        use DataType::*;
+        match self {
+            Pointer(d) => d.get_named(names),
+            Named(s) => { names.insert(s.clone()); },
+            _ => ()
+        }
+    }
+
+    pub fn set_named(&mut self, names: &mut HashMap<String, DataType>)
+    {
+        use DataType::*;
+        match self {
+            Pointer(d) => {
+                let mut n = (**d).clone();
+                n.set_named(names);
+                *d = Rc::new(n);
+            },
+            Named(s) => { *self = names.get(s).unwrap().clone(); },
+            _ => ()
+        }
+    }
 }
 
 impl From<Unique> for DataType {
@@ -276,6 +312,13 @@ impl From<DataRecord> for DataType {
     fn from(r: DataRecord) -> Self
     {
         DataType::Record(Rc::new(r))
+    }
+}
+
+impl From<(Vec<DataType>, DataType)> for DataType {
+    fn from(f: (Vec<DataType>, DataType)) -> Self
+    {
+        DataType::Function(f.0, Box::new(f.1))
     }
 }
 
@@ -1205,9 +1248,9 @@ pub struct SyntaxTree {
     // the program root
     pub functions: Vec<Function>,
     pub declarations: Vec<FunctionDec>,
-    pub records: HashMap<String, DataRecord>,
-    pub types: HashMap<String, DataType>,
-    pub defines: HashMap<String, Define>,
+    pub records: Vec<(String, DataRecord)>,
+    pub types: Vec<(String, DataType)>,
+    pub defines: Vec<(String, Define)>,
     pub definition: Vec<Definition>
 }
 
@@ -1218,9 +1261,9 @@ impl SyntaxTree {
         Self {
             functions: Vec::new(),
             declarations: Vec::new(),
-            records: HashMap::new(),
-            types: HashMap::new(),
-            defines: HashMap::new(),
+            records: Vec::new(),
+            types: Vec::new(),
+            defines: Vec::new(),
             definition: Vec::new()
         }
     }
@@ -1244,11 +1287,16 @@ impl SyntaxTree {
 
     pub fn append_rec(&mut self, r: DataRecord)
     {
-        self.records.insert(r.name.clone(), r);
+        self.records.push((r.name.clone(), r));
     }
 
     pub fn append_types(&mut self, name: &str, d: DataType)
     {
-        self.types.insert(name.into(), d);
+        self.types.push((name.into(), d));
+    }
+
+    pub fn append_define(&mut self, name: String, d: Define)
+    {
+        self.defines.push((name.into(), d));
     }
 }
