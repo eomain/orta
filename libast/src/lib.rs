@@ -268,11 +268,11 @@ impl DataType {
         }
     }
 
-    pub fn get_record(&self) -> &DataRecord
+    pub fn get_record(&self) -> Option<&DataRecord>
     {
         match self {
-            DataType::Record(r) => r,
-            _ => unreachable!()
+            DataType::Record(r) => Some(r),
+            _ => None
         }
     }
 
