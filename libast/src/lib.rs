@@ -571,6 +571,7 @@ pub enum Expr {
     Index(Index),
     Address(Address),
     Deref(Deref),
+    DerefField(DerefField),
     Unsafe(UnsafeExpr)
 }
 
@@ -592,6 +593,7 @@ impl Typed for Expr {
             Expr::Index(i) => i.get_type(),
             Expr::Address(a) => a.get_type(),
             Expr::Deref(d) => d.get_type(),
+            Expr::DerefField(d) => d.get_type(),
             Expr::Unsafe(u) => u.get_type(),
             _ => unimplemented!()
         }
@@ -638,6 +640,31 @@ impl Deref {
 }
 
 impl Typed for Deref {
+    fn get_type(&self) -> &DataType
+    {
+        &self.dtype
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DerefField {
+    pub field: String,
+    pub expr: Box<Expr>,
+    pub dtype: DataType
+}
+
+impl DerefField {
+    pub fn new(field: &str, expr: Expr) -> Self
+    {
+        Self {
+            field: field.into(),
+            expr: Box::new(expr),
+            dtype: DataType::Unset
+        }
+    }
+}
+
+impl Typed for DerefField {
     fn get_type(&self) -> &DataType
     {
         &self.dtype
