@@ -74,7 +74,7 @@ pub fn method(i: &mut Info, s: &mut Scope,
 pub fn field(i: &mut Info, s: &mut Scope,
              f: &mut FieldAccess, expt: Option<DataType>) -> Result<(), Error>
 {
-    expr(i, s, &mut *f.expr, expt)?;
+    expr(i, s, &mut *f.expr, None)?;
     let dtype = (f.expr.get_type());
     if let DataType::Record(r) = dtype {
         match r.attr.iter().find(|a| &a.0 == &f.field) {
@@ -82,7 +82,7 @@ pub fn field(i: &mut Info, s: &mut Scope,
             Some(i) => { f.dtype = i.1.clone(); }
         }
     } else {
-        return Err(error!("expected type struct found `{}`", dtype));
+        return Err(error!("expected type struct, found `{}`", dtype));
     }
     Ok(())
 }
