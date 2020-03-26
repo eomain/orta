@@ -77,11 +77,19 @@ impl<'a> Env<'a> {
 
     fn update_named(&mut self, dtype: &mut DataType)
     {
-        if let DataType::Named(name) = dtype {
-            match self.table.global.get_type(name) {
-                None => (),
-                Some(t) => { *dtype = (*t).clone(); }
-            }
+        match dtype {
+            DataType::Named(name) => {
+                match self.table.global.get_type(name) {
+                    None => (),
+                    Some(t) => { *dtype = (*t).clone(); }
+                }
+            },
+            DataType::Pointer(t) => {
+                let mut n = (**t).clone();
+                self.update_named(&mut n);
+                *t = Rc::new(n);
+            },
+            _ => ()
         }
     }
 
