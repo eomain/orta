@@ -107,10 +107,8 @@ fn structs(i: &mut Info, s: &mut Scope, c: &mut Struct,
             }
         }
     };
-    let mut fields = HashMap::new();
-    for (n ,t) in &comp.attr {
-        fields.insert(n, t);
-    }
+
+    let fields = HashMap::from(&*comp);
     let (a, b) = (c.fields.len(), fields.len());
     if a != b {
         return Err(error!(
