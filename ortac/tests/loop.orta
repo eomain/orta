@@ -1,7 +1,7 @@
 
 fun main()
 {
-    while (true) {
+    loop {
         print("looping...");
     }
 }
