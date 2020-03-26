@@ -217,6 +217,13 @@ fn call(info: &mut Info, s: &mut Scope,
     // check if the call is on a variable (function pointer)
     let var = match s.find_definition(&c.name) {
         Some(Definition::Variable(_)) => true,
+        Some(Definition::Function(f)) => {
+            if f.r#unsafe && !info.is_unsafe() {
+                return Err(error!("calling function `{}`, outside an 'unsafe'", &c.name));
+            } else {
+                false
+            }
+        }
         _ => false
     };
 

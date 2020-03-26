@@ -144,7 +144,7 @@ impl<'a> Env<'a> {
             let ret = dec.ret.clone();
 
             let dtype = DataType::from((args, ret));
-            let d = Definition::Function(Fun::new(false, true));
+            let d = Definition::Function(Fun::new(true, true));
             let info = Info::new(d, Rc::new(dtype), true);
 
             self.table.insert(&dec.name, info);
