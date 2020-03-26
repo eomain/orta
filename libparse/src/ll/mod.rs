@@ -558,6 +558,9 @@ fn expr_value(info: &mut ParseInfo) -> PResult<Expr>
             Some(&Token::Lsqr) => {
                 e = array::index(info, e)?;
             },
+            Some(&Token::Arrow) => {
+                e = Expr::DerefField(meta::deref(info, e)?);
+            },
             _ => break
         }
     }

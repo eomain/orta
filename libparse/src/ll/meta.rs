@@ -16,6 +16,7 @@ use libast::DataRecord;
 use libast::Method;
 use libast::MethodAccess;
 use libast::FieldAccess;
+use libast::DerefField;
 use libast::Define;
 use libast::ComplexLiteral as Complex;
 use libast::StructLiteral;
@@ -167,6 +168,13 @@ pub fn access(info: &mut ParseInfo, e: Expr) -> PResult<Expr>
     }
 }
 
+pub fn deref(info: &mut ParseInfo, e: Expr) -> PResult<DerefField>
+{
+    token!(Token::Arrow, info.next())?;
+    let field = id(info)?;
+    Ok(DerefField::new(&field, e))
+}
+
 pub fn define(info: &mut ParseInfo) -> PResult<(Define, String)>
 {
     token!(Token::Keyword(Key::Define), info.next())?;
@@ -270,6 +278,18 @@ mod tests {
         let mut info = ParseInfo::new(tokens);
         let a = expr_value(&mut info).unwrap();
         println!("{:?}", a);
+    }
+
+    #[test]
+    fn deref_field()
+    {
+        let tokens = liblex::scan(r#"
+            p->x
+        "#.chars().collect()).unwrap();
+
+        let mut info = ParseInfo::new(tokens);
+        let d = expr_value(&mut info).unwrap();
+        println!("{:?}", d);
     }
 
     #[test]
