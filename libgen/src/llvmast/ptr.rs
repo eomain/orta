@@ -27,6 +27,6 @@ pub fn deref(c: &mut Context, d: &Deref,
     let r = c.id.register();
     let op = Load(r.clone(), dtype.clone(), Rc::new(reg));
     v.push(Inst::new(op, dtype.clone()));
-    
+
     (dtype, Value::Reg(r))
 }

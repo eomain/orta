@@ -43,10 +43,8 @@ pub fn field(c: &mut Context, f: &FieldAccess,
     let r = c.id.register();
     field_index(c, f, &r, &t, val, v);
 
-    let reg = c.id.register();
     let dtype = type_cast(&f.dtype);
-    let op = Operation::Load(reg.clone(), dtype.clone(), Rc::new(r));
-    v.push(Inst::new(op, dtype.clone()));
+    let reg = complex::get(c, &f.dtype, dtype.clone(), r, v);
 
     Some(vec![(dtype, Value::Reg(reg))])
 }

@@ -22,21 +22,21 @@ enum VarType {
     Ref
 }
 
-/*impl From<&Type> for VarType {
+impl From<&Type> for VarType {
     fn from(t: &Type) -> Self
     {
         use VarType::*;
         match t {
-            /*Type::Void => unreachable!(),
+            Type::Void => unreachable!(),
             Type::Int(_) |
             Type::Uint(_) |
             Type::Float |
-            Type::Double |*/
+            Type::Double |
             Type::Pointer(_) => Ref,
             _ => Val
         }
     }
-}*/
+}
 
 pub struct Id {
     lindex: usize,
@@ -80,10 +80,6 @@ impl Id {
         let mut i = 0;
         let mut s = String::from(id);
         let mut l = Local::new(&s);
-        /*while self.locals.contains_key(l.as_ref()) {
-            s = format!("{}.{}", s, i);
-            l = Local::new(&s);
-        }*/
         l
     }
 
@@ -167,6 +163,11 @@ impl<'a> Context<'a> {
         }
     }
 
+    fn set_reg(&mut self, reg: Register, alloc: bool)
+    {
+        self.info.temp = Some(AssignVar::new(reg, alloc));
+    }
+
     fn get_reg(&mut self) -> (Register, bool)
     {
         use std::mem::replace;
@@ -176,6 +177,11 @@ impl<'a> Context<'a> {
         } else {
             (self.id.register(), true)
         }
+    }
+
+    fn unset_reg(&mut self)
+    {
+        self.info.temp = None;
     }
 }
 
@@ -826,7 +832,7 @@ fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
     if complex {
         let reg = Register::from(&l);
         c.id.insert(reg.as_ref(), VarType::Val);
-        c.info.temp = Some(AssignVar::new(reg.clone(), alloc));
+        c.set_reg(reg.clone(), alloc);
     }
 
     let (dtype, val) = unary_expr(c, &a.expr, v);
@@ -840,7 +846,7 @@ fn assign(c: &mut Context, a: &ast::Assign, v: &mut Vec<Inst>)
         assign_store(&r, dtype, value, v);
         c.id.insert((*r).as_ref(), VarType::Ref);
     } else {
-        c.info.temp = None;
+        c.unset_reg();
     }
 }
 

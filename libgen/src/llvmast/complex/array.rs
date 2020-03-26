@@ -36,15 +36,6 @@ fn offset(c: &mut Context, o: &(Type, Value), t: Type,
     r
 }
 
-fn get(c: &mut Context, t: Type, reg: Rc<Register>,
-          v: &mut Vec<Inst>) -> Register
-{
-    let r = c.id.register();
-    let op = Load(r.clone(), t.clone(), reg);
-    v.push(Inst::new(op, t));
-    r
-}
-
 fn pointer(c: &mut Context, t: Type, val: Value,
            v: &mut Vec<Inst>) -> (Type, Value)
 {
@@ -79,7 +70,7 @@ pub fn index(c: &mut Context, i: &Index,
     if dtype.array() || dtype.pointer() {
         return (dtype, Value::Reg(r))
     }
-    let r = get(c, dtype.clone(), Rc::new(r), v);
+    let r = get(c, &i.dtype, dtype.clone(), r, v);
 
     (dtype, Value::Reg(r))
 }
