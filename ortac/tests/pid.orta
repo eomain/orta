@@ -10,7 +10,7 @@ fun main()
 {
     print("pid:");
     /* variable `p`, of type `pid` set to the process id */
-    let p = getpid();
+    let p = unsafe getpid();
     /* cast `pid` type into an `int` */
     iprint((int)p);
 }
