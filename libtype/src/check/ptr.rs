@@ -22,13 +22,23 @@ pub fn address(i: &mut Info, s: &mut Scope, a: &mut Address,
     Ok(())
 }
 
+fn can_deref(dtype: &DataType) -> bool
+{
+    use DataType::*;
+    match dtype {
+        Integer(_) | Float(_) | Boolean | Char | Pointer(_) => true,
+        Array(dtype) => can_deref(&(**dtype).dtype),
+        _ => false
+    }
+}
+
 // Check if an expression is a pointer that can be
-// derefenced.
+// dereferenced.
 pub fn deref(i: &mut Info, s: &mut Scope, d: &mut Deref,
              expt: Option<DataType>) -> Result<(), Error>
 {
     if !i.is_unsafe() {
-        return Err(error!("cannot derefence ^ pointer, outside an 'unsafe'"));
+        return Err(error!("cannot dereference ^ pointer, outside an 'unsafe'"));
     }
 
     expr(i, s, &mut d.expr, match expt {
@@ -39,7 +49,11 @@ pub fn deref(i: &mut Info, s: &mut Scope, d: &mut Deref,
     let dtype = &d.expr.get_type();
     match dtype {
         DataType::Pointer(t) => {
-            d.dtype = (**t).clone();
+            if can_deref(&**t) {
+                d.dtype = (**t).clone();
+            } else {
+                return Err(error!("cannot dereference, type '{}'", t));
+            }
         },
         _ => return Err(error!("expected pointer ^, found '{}'", dtype))
     }
