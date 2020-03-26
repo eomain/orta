@@ -88,6 +88,17 @@ impl DataRecord {
     }
 }
 
+impl<'a> From<&'a DataRecord> for HashMap<&'a String, &'a DataType> {
+    fn from(d: &'a DataRecord) -> Self
+    {
+        let mut fields = HashMap::new();
+        for (n ,t) in &d.attr {
+            fields.insert(n, t);
+        }
+        fields
+    }
+}
+
 // Convert a record into an equivalent tuple
 impl From<&DataRecord> for Tuple {
     fn from(r: &DataRecord) -> Self
