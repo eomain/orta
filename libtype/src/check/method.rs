@@ -21,6 +21,13 @@ pub fn at(i: &mut Info, s: &mut Scope,
 fn call(info: &mut Info, s: &mut Scope,
         c: &mut CallExpr, expt: Option<DataType>, name: &str) -> Result<(), Error>
 {
+    match s.find_definition(&c.name) {
+        Some(Definition::Function(f)) => {
+            unsafe_call(info, f, &c.name)?;
+        }
+        _ => ()
+    }
+
     // get the argument types and the return type
     let (args, ret) = match s.find_struct_method(name, &c.name) {
         None => return Err(error!("undefined method '{}'", &c.name)),
@@ -33,29 +40,7 @@ fn call(info: &mut Info, s: &mut Scope,
         }
     };
 
-    let (a, b) = (args.len(), c.args.len());
-    if a != b {
-        return Err(error!(
-            "incorrect number of positional arguments\n  found: {}\n  expected {}",
-            b, a
-        ));
-    }
-
-    let mut i = 0;
-    c.rtype = (*ret).clone();
-    for arg in &mut c.args {
-        if let Err(e) = expr(info, s, arg, Some(args[i].clone())) {
-            return Err(suberror!(e,
-                "argument type error\n  invoked method: {}\n  positional argument: {}\n",
-                &c.name, (i + 1)
-            ));
-        }
-        let (found, expt) = (arg.get_type(), &args[i]);
-        if found != expt {
-            return Err(type_error(found, expt));
-        }
-        i += 1;
-    }
+    call_args(info, s, c, args, ret, expt)?;
     Ok(())
 }
 

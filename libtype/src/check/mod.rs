@@ -211,37 +211,17 @@ fn value(i: &mut Info, s: &mut Scope,
     Ok(())
 }
 
-fn call(info: &mut Info, s: &mut Scope,
-        c: &mut CallExpr, expt: Option<DataType>) -> Result<(), Error>
+fn unsafe_call(info: &mut Info, f: &Fun, name: &str) -> Result<(), Error>
 {
-    // check if the call is on a variable (function pointer)
-    let var = match s.find_definition(&c.name) {
-        Some(Definition::Variable(_)) => true,
-        Some(Definition::Function(f)) => {
-            if f.r#unsafe && !info.is_unsafe() {
-                return Err(error!("calling function `{}`, outside an 'unsafe'", &c.name));
-            } else {
-                false
-            }
-        }
-        _ => false
-    };
+    if f.r#unsafe && !info.is_unsafe() {
+        return Err(error!("calling function `{}`, outside an 'unsafe'", name));
+    }
+    Ok(())
+}
 
-    // get the argument types and the return type
-    let (args, ret) = match s.get_type(&c.name) {
-        None => return Err(error!("undefined function '{}'", &c.name)),
-        Some(dtype) => {
-            if let DataType::Function(v, r) = &dtype.derived() {
-                if var {
-                    c.var = Some((*dtype).clone());
-                }
-                (v.clone(), r.clone())
-            } else {
-                return Err(error!("`{}` is not a function", &c.name));
-            }
-        }
-    };
-
+fn call_args(info: &mut Info, s: &mut Scope, c: &mut CallExpr,
+             args: Vec<DataType>, ret: Box<DataType>, expt: Option<DataType>) -> Result<(), Error>
+{
     let (a, b) = (args.len(), c.args.len());
     if a != b {
         return Err(error!(
@@ -265,6 +245,38 @@ fn call(info: &mut Info, s: &mut Scope,
         }
         i += 1;
     }
+    Ok(())
+}
+
+fn call(info: &mut Info, s: &mut Scope,
+        c: &mut CallExpr, expt: Option<DataType>) -> Result<(), Error>
+{
+    // check if the call is on a variable (function pointer)
+    let var = match s.find_definition(&c.name) {
+        Some(Definition::Variable(_)) => true,
+        Some(Definition::Function(f)) => {
+            unsafe_call(info, f, &c.name)?;
+            false
+        }
+        _ => false
+    };
+
+    // get the argument types and the return type
+    let (args, ret) = match s.get_type(&c.name) {
+        None => return Err(error!("undefined function '{}'", &c.name)),
+        Some(dtype) => {
+            if let DataType::Function(v, r) = &dtype.derived() {
+                if var {
+                    c.var = Some((*dtype).clone());
+                }
+                (v.clone(), r.clone())
+            } else {
+                return Err(error!("`{}` is not a function", &c.name));
+            }
+        }
+    };
+
+    call_args(info, s, c, args, ret, expt)?;
     Ok(())
 }
 
